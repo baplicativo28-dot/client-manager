@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import type { Client, Settings } from '../types';
-import { formatarValor } from '../utils/helpers';
+import { useMemo, useState } from 'react';
+import type { Client, FinanceEntry, Settings } from '../types';
+import { buildFinancialTotalsByMonth, formatarValor } from '../utils/helpers';
 
 interface Props {
   clients: Client[];
   settings: Settings;
+  financeEntries?: FinanceEntry[];
 }
 
 function getMonthKey(date: Date): string {
@@ -17,54 +18,23 @@ function getMonthName(yearMonth: string): string {
   return date.toLocaleString('pt-BR', { month: 'short', year: 'numeric' });
 }
 
-export function FinancialSummary({ clients, settings }: Props) {
+export function FinancialSummary({ clients, settings, financeEntries = [] }: Props) {
   const activeClients = clients.filter((c) => !c.desativado);
-  const createdClients = clients.filter((c) => !c.desativado && c.situacao === 'Assinou' && !c.ultimaRenovacao);
-
-  // Build server cost map by name
-  const serverCostMap: Record<string, number> = {};
-  settings.servidores.forEach((s) => { serverCostMap[s.nome] = s.custo; });
-
-  // Calculate revenue and expenses per month (only count renewals done in that month)
   const hoje = new Date();
   const mesAtual = getMonthKey(hoje);
 
+  const totalsByMonth = buildFinancialTotalsByMonth(clients, settings, financeEntries);
   const receitaPorMes: Record<string, number> = {};
   const despesaPorMes: Record<string, number> = {};
   const mesesDisponiveis: string[] = [];
 
-  // Initialize last 3 months
   for (let i = 2; i >= 0; i--) {
     const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
     const key = getMonthKey(d);
     mesesDisponiveis.push(key);
-    receitaPorMes[key] = 0;
-    despesaPorMes[key] = 0;
+    receitaPorMes[key] = totalsByMonth[key]?.receita || 0;
+    despesaPorMes[key] = totalsByMonth[key]?.despesa || 0;
   }
-
-  // Calculate revenue and expenses per renewal
-  activeClients.forEach((client) => {
-    if (client.ultimaRenovacao) {
-      const mesRenovacao = getMonthKey(new Date(client.ultimaRenovacao));
-      if (receitaPorMes[mesRenovacao] !== undefined) {
-        // Revenue = payment value × months renewed
-        receitaPorMes[mesRenovacao] += client.valor * (client.mesesRenovados || 1);
-        // Expense = server cost × months renewed
-        const custoServidor = serverCostMap[client.servidor] || 0;
-        const meses = client.mesesRenovados || 1;
-        despesaPorMes[mesRenovacao] += custoServidor * meses;
-      }
-    }
-  });
-
-  createdClients.forEach((client) => {
-    const mesCadastro = getMonthKey(new Date(client.criadoEm));
-    if (receitaPorMes[mesCadastro] !== undefined) {
-      receitaPorMes[mesCadastro] += client.valor;
-      const custoServidor = serverCostMap[client.servidor] || 0;
-      despesaPorMes[mesCadastro] += custoServidor;
-    }
-  });
 
   const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
 
@@ -72,7 +42,7 @@ export function FinancialSummary({ clients, settings }: Props) {
   const despesas = despesaPorMes[mesSelecionado] || 0;
   const resultado = receitaBruta - despesas;
   const emConfianca = activeClients.filter((c) => c.trustRenewal).length;
-  const activeWithServer = activeClients.filter((client) => {
+  const activeWithServer = useMemo(() => activeClients.filter((client) => {
     const status = (() => {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
@@ -84,7 +54,7 @@ export function FinancialSummary({ clients, settings }: Props) {
       return 'Expirado';
     })();
     return status === 'Ativo' || status === 'Expirando';
-  });
+  }), [activeClients]);
   const activeWithServerCount = activeWithServer.filter((client) => client.servidor && client.servidor.trim()).length;
 
   return (

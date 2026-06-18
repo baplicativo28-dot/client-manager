@@ -1,4 +1,4 @@
-import type { Client, Settings, StatusCalculado } from '../types';
+import type { Client, FinanceEntry, Settings, StatusCalculado } from '../types';
 
 export function calcularStatus(dataVencimento: string): StatusCalculado {
   const hoje = new Date();
@@ -102,4 +102,69 @@ export function isToday(dateISO: string | null): boolean {
 
 export function formatarDataHora(dataISO: string): string {
   return new Date(dataISO).toLocaleString('pt-BR');
+}
+
+export function getMonthKeyFromIsoDate(dateISO: string): string {
+  return dateISO.slice(0, 7);
+}
+
+export function getMonthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number);
+  const date = new Date(year, month - 1);
+  return date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+}
+
+export function getPreviousMonthKey(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number);
+  const date = new Date(year, month - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export function buildFinancialTotalsByMonth(
+  clients: Client[],
+  settings: Settings,
+  financeEntries: FinanceEntry[] = [],
+): Record<string, { receita: number; despesa: number }> {
+  const totals: Record<string, { receita: number; despesa: number }> = {};
+  const activeClients = clients.filter((client) => !client.desativado);
+  const createdClients = clients.filter((client) => !client.desativado && client.situacao === 'Assinou' && !client.ultimaRenovacao);
+  const serverCostMap: Record<string, number> = {};
+
+  settings.servidores.forEach((server) => {
+    serverCostMap[server.nome] = server.custo;
+  });
+
+  const ensureMonth = (monthKey: string) => {
+    if (!totals[monthKey]) {
+      totals[monthKey] = { receita: 0, despesa: 0 };
+    }
+  };
+
+  activeClients.forEach((client) => {
+    if (!client.ultimaRenovacao) return;
+    const monthKey = `${new Date(client.ultimaRenovacao).getFullYear()}-${String(new Date(client.ultimaRenovacao).getMonth() + 1).padStart(2, '0')}`;
+    ensureMonth(monthKey);
+    const months = client.mesesRenovados || 1;
+    totals[monthKey].receita += client.valor * months;
+    totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
+  });
+
+  createdClients.forEach((client) => {
+    const monthKey = `${new Date(client.criadoEm).getFullYear()}-${String(new Date(client.criadoEm).getMonth() + 1).padStart(2, '0')}`;
+    ensureMonth(monthKey);
+    totals[monthKey].receita += client.valor;
+    totals[monthKey].despesa += serverCostMap[client.servidor] || 0;
+  });
+
+  financeEntries.forEach((entry) => {
+    const monthKey = getMonthKeyFromIsoDate(entry.data);
+    ensureMonth(monthKey);
+    const quantity = entry.quantidade || 1;
+    totals[monthKey].despesa += entry.custo * quantity;
+    if (entry.tipo === 'venda') {
+      totals[monthKey].receita += entry.valorVenda * quantity;
+    }
+  });
+
+  return totals;
 }

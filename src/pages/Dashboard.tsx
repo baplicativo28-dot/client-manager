@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Client, FilterTab } from '../types';
 import { useClients } from '../hooks/useClients';
+import { useFinance } from '../hooks/useFinance';
 import { useSettings } from '../hooks/useSettings';
 import {
   calcularStatus,
@@ -37,6 +38,7 @@ type ReminderItem = {
 
 export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const { clients, loading: clientsLoading, addClient, updateClient, deleteClient } = useClients(uid);
+  const { entries: financeEntries } = useFinance(uid);
   const { settings } = useSettings(uid);
 
   const [search, setSearch] = useState('');
@@ -648,6 +650,12 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
                 </svg>
                 Configurações
               </a>
+              <a href="/financeiro" className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .672-3 1.5S10.343 11 12 11s3-.672 3-1.5S13.657 8 12 8zm0 0V6m0 5v2m-7 1.5C5 13.672 6.343 13 8 13s3 .672 3 1.5S9.657 16 8 16s-3-.672-3-1.5zM16 14.5c0-.828 1.343-1.5 3-1.5s3 .672 3 1.5S20.657 16 19 16s-3-.672-3-1.5zM6 20h12" />
+                </svg>
+                Financeiro
+              </a>
               <button
                 onClick={() => { setSidebarOpen(false); prepareAutoSend(); }}
                 className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
@@ -732,7 +740,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
         </div>
       )}
 
-      <FinancialSummary clients={clients} settings={settings} />
+      <FinancialSummary clients={clients} settings={settings} financeEntries={financeEntries} />
 
       <div className="mb-4">
         <button onClick={() => setShowServerStats(!showServerStats)} className="text-sm font-medium text-accent hover:underline">

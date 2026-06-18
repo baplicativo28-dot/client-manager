@@ -4,6 +4,7 @@ import { Dashboard } from './pages/Dashboard';
 import { SettingsPage } from './pages/Settings';
 import { Login } from './pages/Login';
 import { ResellersPage } from './pages/Resellers';
+import { FinancePage } from './pages/Finance';
 
 function BlockedScreen({ onLogout }: { onLogout: () => void }) {
   return (
@@ -52,6 +53,7 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Dashboard uid={user.uid} onLogout={logout} isAdmin={isAdmin} />} />
+        <Route path="/financeiro" element={<FinancePage uid={user.uid} onLogout={logout} />} />
         <Route path="/configuracoes" element={<SettingsPage uid={user.uid} onLogout={logout} />} />
         <Route
           path="/revendedores"

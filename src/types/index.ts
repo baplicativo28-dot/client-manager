@@ -51,3 +51,29 @@ export interface Settings {
   whatsappServerUrl?: string;
   whatsappServerKey?: string;
 }
+
+export type FinanceEntryType = 'venda' | 'despesa';
+export type FinanceCategory = 'licenca' | 'aparelho' | 'fornecedor' | 'rotina' | 'outro';
+
+export interface FinanceProduct {
+  id: string;
+  nome: string;
+  categoria: FinanceCategory;
+  custo: number;
+  valorVenda: number;
+  criadoEm: string;
+}
+
+export interface FinanceEntry {
+  id: string;
+  tipo: FinanceEntryType;
+  categoria: FinanceCategory;
+  descricao: string;
+  custo: number;
+  valorVenda: number;
+  quantidade: number;
+  data: string;
+  observacao?: string;
+  productId?: string | null;
+  criadoEm: string;
+}
