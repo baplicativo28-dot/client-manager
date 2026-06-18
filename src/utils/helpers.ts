@@ -126,6 +126,7 @@ export function buildFinancialTotalsByMonth(
   financeEntries: FinanceEntry[] = [],
 ): Record<string, { receita: number; despesa: number }> {
   const totals: Record<string, { receita: number; despesa: number }> = {};
+  const currentMonthKey = getMonthKeyFromIsoDate(new Date().toISOString().split('T')[0]);
   const activeClients = clients.filter((client) => !client.desativado);
   const createdClients = clients.filter((client) => !client.desativado && client.situacao === 'Assinou' && !client.ultimaRenovacao);
   const serverCostMap: Record<string, number> = {};
@@ -135,15 +136,17 @@ export function buildFinancialTotalsByMonth(
   });
 
   const ensureMonth = (monthKey: string) => {
+    if (monthKey < currentMonthKey) return false;
     if (!totals[monthKey]) {
       totals[monthKey] = { receita: 0, despesa: 0 };
     }
+    return true;
   };
 
   activeClients.forEach((client) => {
     if (!client.ultimaRenovacao) return;
     const monthKey = `${new Date(client.ultimaRenovacao).getFullYear()}-${String(new Date(client.ultimaRenovacao).getMonth() + 1).padStart(2, '0')}`;
-    ensureMonth(monthKey);
+    if (!ensureMonth(monthKey)) return;
     const months = client.mesesRenovados || 1;
     totals[monthKey].receita += client.valor * months;
     totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
@@ -151,14 +154,14 @@ export function buildFinancialTotalsByMonth(
 
   createdClients.forEach((client) => {
     const monthKey = `${new Date(client.criadoEm).getFullYear()}-${String(new Date(client.criadoEm).getMonth() + 1).padStart(2, '0')}`;
-    ensureMonth(monthKey);
+    if (!ensureMonth(monthKey)) return;
     totals[monthKey].receita += client.valor;
     totals[monthKey].despesa += serverCostMap[client.servidor] || 0;
   });
 
   financeEntries.forEach((entry) => {
     const monthKey = getMonthKeyFromIsoDate(entry.data);
-    ensureMonth(monthKey);
+    if (!ensureMonth(monthKey)) return;
     const quantity = entry.quantidade || 1;
     totals[monthKey].despesa += entry.custo * quantity;
     if (entry.tipo === 'venda') {

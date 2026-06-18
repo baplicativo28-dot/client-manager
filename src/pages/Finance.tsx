@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { useFinance } from '../hooks/useFinance';
@@ -18,7 +18,7 @@ interface FinancePageProps {
 }
 
 const categoryLabels: Record<FinanceCategory, string> = {
-  licenca: 'Licença',
+  licenca: 'LicenÃ§a',
   aparelho: 'Aparelho',
   fornecedor: 'Fornecedor',
   rotina: 'Rotina',
@@ -37,8 +37,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     products,
     loading: financeLoading,
     addEntry,
+    updateEntry,
     deleteEntry,
     addProduct,
+    updateProduct,
     deleteProduct,
   } = useFinance(uid);
   const { settings, loading: settingsLoading } = useSettings(uid);
@@ -46,6 +48,8 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [entryForm, setEntryForm] = useState({
     productId: '',
     tipo: 'venda' as FinanceEntryType,
@@ -107,6 +111,21 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
   const profit = totals.receita - totals.despesa;
 
+  const resetEntryForm = () => {
+    setEditingEntryId(null);
+    setEntryForm({
+      productId: '',
+      tipo: 'venda',
+      categoria: 'licenca',
+      descricao: '',
+      custo: '',
+      valorVenda: '',
+      quantidade: '1',
+      data: today,
+      observacao: '',
+    });
+  };
+
   const applyProductToForm = (productId: string) => {
     const selected = products.find((item) => item.id === productId);
     if (!selected) {
@@ -126,12 +145,20 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
   const handleAddProduct = () => {
     if (!productForm.nome.trim()) return;
-    addProduct({
+    const payload = {
       nome: productForm.nome.trim(),
       categoria: productForm.categoria,
       custo: Number(productForm.custo) || 0,
       valorVenda: Number(productForm.valorVenda) || 0,
-    });
+    };
+
+    if (editingProductId) {
+      updateProduct(editingProductId, payload);
+    } else {
+      addProduct(payload);
+    }
+
+    setEditingProductId(null);
     setProductForm({
       nome: '',
       categoria: 'licenca',
@@ -140,9 +167,32 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     });
   };
 
-  const handleAddEntry = () => {
+  const handleEditProduct = (productId: string) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) return;
+    setEditingProductId(product.id);
+    setProductForm({
+      nome: product.nome,
+      categoria: product.categoria,
+      custo: String(product.custo),
+      valorVenda: String(product.valorVenda),
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetProductForm = () => {
+    setEditingProductId(null);
+    setProductForm({
+      nome: '',
+      categoria: 'licenca',
+      custo: '',
+      valorVenda: '',
+    });
+  };
+
+  const handleSaveEntry = () => {
     if (!entryForm.descricao.trim() || !entryForm.data) return;
-    addEntry({
+    const payload = {
       productId: entryForm.productId || null,
       tipo: entryForm.tipo,
       categoria: entryForm.categoria,
@@ -152,18 +202,33 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       quantidade: Number(entryForm.quantidade) || 1,
       data: entryForm.data,
       observacao: entryForm.observacao.trim(),
-    });
+    };
+
+    if (editingEntryId) {
+      updateEntry(editingEntryId, payload);
+    } else {
+      addEntry(payload);
+    }
+
+    resetEntryForm();
+  };
+
+  const handleEditEntry = (entryId: string) => {
+    const entry = entries.find((item) => item.id === entryId);
+    if (!entry) return;
+    setEditingEntryId(entry.id);
     setEntryForm({
-      productId: '',
-      tipo: 'venda',
-      categoria: 'licenca',
-      descricao: '',
-      custo: '',
-      valorVenda: '',
-      quantidade: '1',
-      data: today,
-      observacao: '',
+      productId: entry.productId || '',
+      tipo: entry.tipo,
+      categoria: entry.categoria,
+      descricao: entry.descricao,
+      custo: String(entry.custo),
+      valorVenda: String(entry.valorVenda),
+      quantidade: String(entry.quantidade || 1),
+      data: entry.data,
+      observacao: entry.observacao || '',
     });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (financeLoading || clientsLoading || settingsLoading) {
@@ -180,7 +245,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <Link to="/" className="hover:text-accent">Clientes</Link>
-            <span>•</span>
+            <span>â€¢</span>
             <span>Financeiro</span>
           </div>
           <h1 className="text-2xl font-bold">Financeiro</h1>
@@ -231,8 +296,8 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
       <div className="bg-card rounded-xl shadow-sm border border-border p-5 mb-6">
         <div className="flex flex-col gap-1 mb-4">
-          <h2 className="text-lg font-semibold">Gráfico de vendas</h2>
-          <p className="text-sm text-gray-500">Comparação da receita deste mês com o mês anterior, incluindo renovações e lançamentos do financeiro.</p>
+          <h2 className="text-lg font-semibold">GrÃ¡fico de vendas</h2>
+          <p className="text-sm text-gray-500">ComparaÃ§Ã£o da receita deste mÃªs com o mÃªs anterior, incluindo renovaÃ§Ãµes e lanÃ§amentos do financeiro.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
           <div className="h-64 flex items-end gap-4">
@@ -253,19 +318,19 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
           </div>
           <div className="space-y-3">
             <div className="rounded-xl bg-gray-50 border border-border p-4">
-              <p className="text-sm text-gray-500">Mês selecionado</p>
+              <p className="text-sm text-gray-500">MÃªs selecionado</p>
               <p className="text-lg font-semibold capitalize">{getMonthLabel(selectedMonth)}</p>
               <p className="text-xl font-bold text-success mt-2">{formatarValor(totals.receita)}</p>
             </div>
             <div className="rounded-xl bg-gray-50 border border-border p-4">
-              <p className="text-sm text-gray-500">Mês anterior</p>
+              <p className="text-sm text-gray-500">MÃªs anterior</p>
               {previousTotals ? (
                 <>
                   <p className="text-lg font-semibold capitalize">{getMonthLabel(previousMonthKey)}</p>
                   <p className="text-xl font-bold mt-2">{formatarValor(previousTotals.receita)}</p>
                 </>
               ) : (
-                <p className="text-sm text-gray-500 mt-2">Ainda não há dados do mês anterior para comparar.</p>
+                <p className="text-sm text-gray-500 mt-2">Ainda nÃ£o hÃ¡ dados do mÃªs anterior para comparar.</p>
               )}
             </div>
           </div>
@@ -274,7 +339,18 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
-          <h2 className="text-lg font-semibold mb-4">Produtos recorrentes</h2>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-semibold">{editingProductId ? 'Editar produto recorrente' : 'Produtos recorrentes'}</h2>
+            {editingProductId && (
+              <button
+                type="button"
+                onClick={resetProductForm}
+                className="text-sm font-medium text-gray-500 hover:text-gray-800"
+              >
+                Cancelar ediÃ§Ã£o
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <input
               type="text"
@@ -316,20 +392,24 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             onClick={handleAddProduct}
             className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
           >
-            Salvar produto
+            {editingProductId ? 'Salvar alteraÃ§Ã£o' : 'Salvar produto'}
           </button>
 
           <div className="mt-5 space-y-3">
             {sortedProducts.length === 0 && <p className="text-sm text-gray-500">Nenhum produto cadastrado.</p>}
             {sortedProducts.map((product) => (
               <div key={product.id} className="border border-border rounded-xl p-4 flex items-start justify-between gap-3">
-                <div>
+                <button
+                  type="button"
+                  onClick={() => handleEditProduct(product.id)}
+                  className="flex-1 min-w-0 text-left"
+                >
                   <p className="font-medium">{product.nome}</p>
                   <p className="text-sm text-gray-500">{categoryLabels[product.categoria]}</p>
                   <p className="text-sm text-gray-600 mt-1">
-                    Custo: {formatarValor(product.custo)} · Venda: {formatarValor(product.valorVenda)}
+                    Custo: {formatarValor(product.custo)} Â· Venda: {formatarValor(product.valorVenda)}
                   </p>
-                </div>
+                </button>
                 <button
                   type="button"
                   onClick={() => deleteProduct(product.id)}
@@ -343,7 +423,18 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         </div>
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
-          <h2 className="text-lg font-semibold mb-4">Lançar venda ou despesa</h2>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-semibold">{editingEntryId ? 'Editar lanÃ§amento' : 'LanÃ§ar venda ou despesa'}</h2>
+            {editingEntryId && (
+              <button
+                type="button"
+                onClick={resetEntryForm}
+                className="text-sm font-medium text-gray-500 hover:text-gray-800"
+              >
+                Cancelar ediÃ§Ã£o
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
               value={entryForm.productId}
@@ -377,7 +468,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
               type="text"
               value={entryForm.descricao}
               onChange={(e) => setEntryForm((current) => ({ ...current, descricao: e.target.value }))}
-              placeholder="Descrição"
+              placeholder="DescriÃ§Ã£o"
               className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
             />
             <input
@@ -417,28 +508,28 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             <textarea
               value={entryForm.observacao}
               onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
-              placeholder="Observação (opcional)"
+              placeholder="ObservaÃ§Ã£o (opcional)"
               rows={3}
               className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
             />
           </div>
           <button
             type="button"
-            onClick={handleAddEntry}
+            onClick={handleSaveEntry}
             className="mt-4 bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
           >
-            Salvar lançamento
+            {editingEntryId ? 'Salvar alteraÃ§Ã£o' : 'Salvar lanÃ§amento'}
           </button>
         </div>
       </div>
 
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
         <div className="p-5 border-b border-border">
-          <h2 className="text-lg font-semibold">Lançamentos do mês</h2>
+          <h2 className="text-lg font-semibold">LanÃ§amentos do mÃªs</h2>
         </div>
         <div className="divide-y divide-border">
           {filteredEntries.length === 0 && (
-            <p className="p-5 text-sm text-gray-500">Nenhum lançamento neste mês.</p>
+            <p className="p-5 text-sm text-gray-500">Nenhum lanÃ§amento neste mÃªs.</p>
           )}
           {filteredEntries.map((entry) => {
             const quantity = entry.quantidade || 1;
@@ -461,7 +552,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mt-1">
-                    Data: {new Date(entry.data + 'T00:00:00').toLocaleDateString('pt-BR')} · Quantidade: {quantity}
+                    Data: {new Date(entry.data + 'T00:00:00').toLocaleDateString('pt-BR')} Â· Quantidade: {quantity}
                   </p>
                   {entry.observacao && <p className="text-sm text-gray-600 mt-1">{entry.observacao}</p>}
                 </div>
@@ -473,13 +564,22 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                   <p className={`font-semibold ${result >= 0 ? 'text-success' : 'text-danger'}`}>
                     Resultado: {formatarValor(result)}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => deleteEntry(entry.id)}
-                    className="mt-2 text-xs text-red-600 font-medium hover:underline"
-                  >
-                    Excluir
-                  </button>
+                  <div className="mt-2 flex items-center gap-3 md:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleEditEntry(entry.id)}
+                      className="text-xs text-accent font-medium hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteEntry(entry.id)}
+                      className="text-xs text-red-600 font-medium hover:underline"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </div>
               </div>
             );
