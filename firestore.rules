@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Verifica se o usuário autenticado não está bloqueado
+    function isNotBlocked() {
+      return !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.blocked;
+    }
+
+    // Verifica se o usuário autenticado é admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Perfis de usuário
+    match /users/{uid} {
+      // Usuário lê o próprio perfil
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Usuário cria o próprio perfil (primeiro login → role: admin)
+      allow create: if request.auth != null && request.auth.uid == uid;
+
+      // Admin lê perfis dos seus revendedores
+      allow read: if request.auth != null
+                   && isAdmin()
+                   && resource.data.createdBy == request.auth.uid;
+
+      // Admin cria doc de revendedor (com createdBy apontando para si)
+      allow create: if request.auth != null
+                     && isAdmin()
+                     && request.resource.data.createdBy == request.auth.uid
+                     && request.resource.data.role == 'reseller'
+                     && isNotBlocked();
+
+      // Admin atualiza apenas o campo blocked nos seus revendedores
+      allow update: if request.auth != null
+                     && isAdmin()
+                     && resource.data.createdBy == request.auth.uid
+                     && isNotBlocked()
+                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked']);
+    }
+
+    // Clientes: acesso somente ao próprio usuário, somente se não bloqueado
+    match /users/{uid}/clients/{clientId} {
+      allow read, write: if request.auth != null
+                          && request.auth.uid == uid
+                          && isNotBlocked();
+    }
+
+    // Configurações: acesso somente ao próprio usuário, somente se não bloqueado
+    match /users/{uid}/settings/{doc} {
+      allow read, write: if request.auth != null
+                          && request.auth.uid == uid
+                          && isNotBlocked();
+    }
+  }
+}
