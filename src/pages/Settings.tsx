@@ -336,35 +336,6 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
         </button>
       </div>
 
-      <div className="mb-6 rounded-3xl border-4 border-amber-500 bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 p-5 shadow-[0_12px_30px_rgba(245,158,11,0.22)]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-2xl font-black text-white shadow-lg">
-              !
-            </div>
-            <div>
-              <h2 className="text-2xl font-extrabold text-amber-950">Confirmações de Ação</h2>
-              <p className="text-sm font-medium text-amber-900">
-                Ative para deletar ou desativar sem confirmação por até 5 minutos.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <button
-              onClick={toggleSkipActionConfirm}
-              className={`rounded-2xl px-6 py-4 text-base font-black shadow-lg transition-transform hover:scale-[1.02] ${skipActionConfirmEnabled ? 'bg-green-600 text-white' : 'bg-amber-600 text-white'}`}
-            >
-              {skipActionConfirmEnabled ? 'Desativar modo sem confirmação' : 'Ativar por 5 minutos'}
-            </button>
-            {skipActionConfirmEnabled && skipActionConfirmUntil && (
-              <span className="text-sm font-semibold text-green-800">
-                Ativo até {new Date(Number(skipActionConfirmUntil)).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
       <div className="space-y-6">
         {/* WhatsApp Template */}
         <div className="bg-card rounded-xl shadow-sm border border-border p-6">
