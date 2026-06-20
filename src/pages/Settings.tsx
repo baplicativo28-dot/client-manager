@@ -553,6 +553,33 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
           {waError && <p className="text-sm text-red-600 mt-2">{waError}</p>}
         </div>
 
+        <div className="bg-card rounded-2xl shadow-lg border-2 border-amber-400 bg-amber-50/70 p-6 ring-4 ring-amber-200/60">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white text-xl shadow">
+              !
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-amber-900">Confirmações de Ação</h2>
+              <p className="text-sm text-amber-800">
+                Ative aqui para deletar ou desativar sem perguntar por até 5 minutos.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              onClick={toggleSkipActionConfirm}
+              className={`rounded-xl px-5 py-3 text-sm font-bold shadow-md transition-all ${skipActionConfirmEnabled ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+            >
+              {skipActionConfirmEnabled ? 'Desativar modo sem confirmação' : 'Ativar por 5 minutos'}
+            </button>
+            {skipActionConfirmEnabled && skipActionConfirmUntil && (
+              <span className="text-sm font-medium text-green-800">
+                Ativo até {new Date(Number(skipActionConfirmUntil)).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        </div>
+
         <div className="bg-card rounded-xl shadow-sm border border-border p-6">
           <h2 className="text-lg font-semibold mb-3">Backup</h2>
           <p className="text-sm text-gray-500 mb-4">
@@ -589,28 +616,6 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
           </div>
           {csvEmailFeedback && (
             <p className="text-sm text-gray-700 mt-3">{csvEmailFeedback}</p>
-          )}
-        </div>
-
-        <div className="bg-card rounded-xl shadow-sm border border-border p-6">
-          <h2 className="text-lg font-semibold mb-3">Confirmações de Ação</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Quando ativo, ações como deletar ou desativar não vão pedir confirmação por até 5 minutos.
-          </p>
-          <button
-            onClick={toggleSkipActionConfirm}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              skipActionConfirmEnabled
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-            }`}
-          >
-            {skipActionConfirmEnabled ? 'Desativar modo sem confirmação' : 'Ativar por 5 minutos'}
-          </button>
-          {skipActionConfirmEnabled && skipActionConfirmUntil && (
-            <p className="text-xs text-green-700 mt-3">
-              Ativo até {new Date(Number(skipActionConfirmUntil)).toLocaleTimeString()}
-            </p>
           )}
         </div>
 
