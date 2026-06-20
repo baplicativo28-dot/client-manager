@@ -38,33 +38,39 @@ service cloud.firestore {
                      && resource.data.createdBy == request.auth.uid
                      && isNotBlocked()
                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked']);
+
+    // Admin deleta perfil de revendedor que criou
+    allow delete: if request.auth != null
+                   && isAdmin()
+                   && resource.data.createdBy == request.auth.uid
+                   && isNotBlocked();
     }
 
     // Clientes: acesso somente ao próprio usuário, somente se não bloqueado
     match /users/{uid}/clients/{clientId} {
-      allow read, write: if request.auth != null
-                          && request.auth.uid == uid
-                          && isNotBlocked();
+    allow read, write: if request.auth != null && isNotBlocked() &&
+                          (request.auth.uid == uid ||
+                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
 
     // Configurações: acesso somente ao próprio usuário, somente se não bloqueado
     match /users/{uid}/settings/{doc} {
-      allow read, write: if request.auth != null
-                          && request.auth.uid == uid
-                          && isNotBlocked();
+    allow read, write: if request.auth != null && isNotBlocked() &&
+                          (request.auth.uid == uid ||
+                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
 
     // Financeiro: produtos e lançamentos do próprio usuário, somente se não bloqueado
     match /users/{uid}/financeProducts/{docId} {
-      allow read, write: if request.auth != null
-                          && request.auth.uid == uid
-                          && isNotBlocked();
+    allow read, write: if request.auth != null && isNotBlocked() &&
+                          (request.auth.uid == uid ||
+                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
 
     match /users/{uid}/financeEntries/{docId} {
-      allow read, write: if request.auth != null
-                          && request.auth.uid == uid
-                          && isNotBlocked();
+    allow read, write: if request.auth != null && isNotBlocked() &&
+                          (request.auth.uid == uid ||
+                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
   }
 }

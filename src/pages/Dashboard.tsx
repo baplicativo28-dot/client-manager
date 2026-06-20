@@ -339,9 +339,12 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
     updateClient(client.id, { desativado: true, situacao: 'Não Renovou' });
   };
 
-  const handleDelete = (client: Client) => {
-    if (window.confirm(`Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`)) {
-      deleteClient(client.id);
+  const handleDelete = async (client: Client) => {
+    if (!window.confirm(`Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deleteClient(client.id);
+    } catch {
+      window.alert('Erro ao excluir cliente. Verifique as permissões do Firestore e tente novamente.');
     }
   };
 

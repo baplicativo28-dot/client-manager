@@ -77,9 +77,12 @@ export async function saveSettingsToFirestore(uid: string, settings: Settings): 
 export async function deleteAllClientsFromFirestore(uid: string): Promise<number> {
   const snap = await getDocs(clientsRef(uid));
   if (snap.empty) return 0;
-  const batch = writeBatch(db);
-  snap.docs.forEach((d) => batch.delete(d.ref));
-  await batch.commit();
+  const CHUNK = 400;
+  for (let i = 0; i < snap.docs.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
   return snap.docs.length;
 }
 

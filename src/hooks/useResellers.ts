@@ -54,15 +54,44 @@ export function useResellers(adminUid: string) {
   }, []);
 
   const deleteReseller = useCallback(async (uid: string): Promise<void> => {
-    const batch = writeBatch(db);
-    // Delete all clients in subcollection
+    const CHUNK = 400;
+
+    // Delete all clients
     const clientsSnap = await getDocs(collection(db, 'users', uid, 'clients'));
-    clientsSnap.docs.forEach((d) => batch.delete(d.ref));
+    for (let i = 0; i < clientsSnap.docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      clientsSnap.docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    // Delete finance entries
+    const entriesSnap = await getDocs(collection(db, 'users', uid, 'financeEntries'));
+    for (let i = 0; i < entriesSnap.docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      entriesSnap.docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    // Delete finance products
+    const productsSnap = await getDocs(collection(db, 'users', uid, 'financeProducts'));
+    for (let i = 0; i < productsSnap.docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      productsSnap.docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
     // Delete settings doc
-    batch.delete(doc(db, 'users', uid, 'settings', 'data'));
-    // Delete user profile doc
-    batch.delete(doc(db, 'users', uid));
-    await batch.commit();
+    const settingsSnap = await getDocs(collection(db, 'users', uid, 'settings'));
+    if (!settingsSnap.empty) {
+      const batch = writeBatch(db);
+      settingsSnap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    // Keep the user profile document but mark as blocked so they can't log in
+    await import('firebase/firestore').then(({ updateDoc, doc: firestoreDoc }) =>
+      updateDoc(firestoreDoc(db, 'users', uid), { blocked: true, deletedAt: new Date().toISOString() }),
+    );
   }, []);
 
   const sendPasswordReset = useCallback(async (email: string): Promise<void> => {

@@ -20,7 +20,7 @@ export function useClients(uid: string) {
   }, [uid]);
 
   const addClient = useCallback(
-    (client: Omit<Client, 'id' | 'desativado' | 'lembreteEnviado' | 'situacao'>) => {
+    async (client: Omit<Client, 'id' | 'desativado' | 'lembreteEnviado' | 'situacao'>) => {
       const id = generateId();
       const today = new Date().toISOString().split('T')[0];
       const newClient: Client = {
@@ -38,24 +38,24 @@ export function useClients(uid: string) {
         trustOriginalDueDate: null,
         lastReminderResetDate: null,
       };
-      void setDoc(doc(db, 'users', uid, 'clients', id), newClient);
+      await setDoc(doc(db, 'users', uid, 'clients', id), newClient);
     },
     [uid],
   );
 
   const updateClient = useCallback(
-    (id: string, data: Partial<Client>) => {
+    async (id: string, data: Partial<Client>) => {
       const sanitized = Object.fromEntries(
         Object.entries(data).filter(([, value]) => value !== undefined),
       ) as Record<string, unknown>;
-      void updateDoc(doc(db, 'users', uid, 'clients', id), sanitized);
+      await updateDoc(doc(db, 'users', uid, 'clients', id), sanitized);
     },
     [uid],
   );
 
   const deleteClient = useCallback(
-    (id: string) => {
-      void deleteDoc(doc(db, 'users', uid, 'clients', id));
+    async (id: string) => {
+      await deleteDoc(doc(db, 'users', uid, 'clients', id));
     },
     [uid],
   );

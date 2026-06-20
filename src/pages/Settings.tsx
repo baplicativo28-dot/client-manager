@@ -215,7 +215,7 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
     try {
       const count = await deleteAllClientsFromFirestore(uid);
       setDeleteAllFeedback(`✓ ${count} cliente(s) deletado(s) com sucesso.`);
-    } catch (err) {
+    } catch {
       setDeleteAllFeedback('Erro ao deletar clientes. Tente novamente.');
     } finally {
       setDeleteAllLoading(false);
