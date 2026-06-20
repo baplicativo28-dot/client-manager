@@ -65,6 +65,10 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const [autoSendProgress, setAutoSendProgress] = useState('');
   const [autoSendPending, setAutoSendPending] = useState<ReminderItem[]>([]);
   const [showAutoSendListModal, setShowAutoSendListModal] = useState(false);
+  const [skipActionConfirmUntil, setSkipActionConfirmUntil] = useState<string | null>(
+    localStorage.getItem('cm_skip_action_confirm_until')
+  );
+  const skipActionConfirmEnabled = !!skipActionConfirmUntil && Date.now() < Number(skipActionConfirmUntil);
 
   useEffect(() => {
     if (clientsLoading) return;
@@ -82,6 +86,14 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       }
     }
   }, [clientsLoading, clients.length]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const savedValue = localStorage.getItem('cm_skip_action_confirm_until');
+      setSkipActionConfirmUntil(savedValue);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const clientsWithStatus = useMemo(() => {
     return clients.map((client) => ({
@@ -335,12 +347,12 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       return;
     }
 
-    if (!window.confirm(`Tem certeza que deseja desativar "${client.nome}"?`)) return;
+    if (!skipActionConfirmEnabled && !window.confirm(`Tem certeza que deseja desativar "${client.nome}"?`)) return;
     updateClient(client.id, { desativado: true, situacao: 'Não Renovou' });
   };
 
   const handleDelete = async (client: Client) => {
-    if (!window.confirm(`Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!skipActionConfirmEnabled && !window.confirm(`Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`)) return;
     try {
       await deleteClient(client.id);
     } catch {

@@ -43,6 +43,7 @@ export interface Settings {
   whatsappTemplateConfianca: string;
   whatsappTemplateExpirado: string;
   whatsappTemplateExpirado1Dia: string;
+  skipActionConfirmUntil?: string | null;
   defaultChavePix: string;
   defaultBanco: string;
   defaultBeneficiario: string;

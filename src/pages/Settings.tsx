@@ -34,6 +34,11 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
   const [deleteAllLoading, setDeleteAllLoading] = useState(false);
   const [deleteAllFeedback, setDeleteAllFeedback] = useState('');
   const [csvEmailFeedback, setCsvEmailFeedback] = useState('');
+  const [skipActionConfirmUntil, setSkipActionConfirmUntil] = useState<string | null>(
+    localStorage.getItem('cm_skip_action_confirm_until')
+  );
+  const skipActionConfirmEnabled =
+    !!skipActionConfirmUntil && Date.now() < Number(skipActionConfirmUntil);
 
   const [whatsappServerUrl, setWhatsappServerUrl] = useState(settings.whatsappServerUrl ?? '');
   const [whatsappServerKey, setWhatsappServerKey] = useState(settings.whatsappServerKey ?? '');
@@ -60,6 +65,14 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const savedValue = localStorage.getItem('cm_skip_action_confirm_until');
+      setSkipActionConfirmUntil(savedValue);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSave = async () => {
     // Cascade server name changes to clients
@@ -99,6 +112,18 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const toggleSkipActionConfirm = () => {
+    if (skipActionConfirmEnabled) {
+      localStorage.removeItem('cm_skip_action_confirm_until');
+      setSkipActionConfirmUntil(null);
+      return;
+    }
+
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+    localStorage.setItem('cm_skip_action_confirm_until', String(expiresAt));
+    setSkipActionConfirmUntil(String(expiresAt));
+  };
+
   const addServidor = () => {
     if (!novoServidor.nome) return;
     const novo: ServerCost = {
@@ -132,7 +157,7 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
 
   const handleImportBackup = async (file: File | null) => {
     if (!file) return;
-    if (!window.confirm('Isso substituirá todos os dados atuais. Deseja continuar?')) return;
+    if (!skipActionConfirmEnabled && !window.confirm('Isso substituirá todos os dados atuais. Deseja continuar?')) return;
     const data = await importBackup(file);
     await saveAllClientsToFirestore(uid, data.clients);
     await saveSettingsToFirestore(uid, data.settings);
@@ -567,6 +592,28 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
           )}
         </div>
 
+        <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+          <h2 className="text-lg font-semibold mb-3">Confirmações de Ação</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Quando ativo, ações como deletar ou desativar não vão pedir confirmação por até 5 minutos.
+          </p>
+          <button
+            onClick={toggleSkipActionConfirm}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              skipActionConfirmEnabled
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            {skipActionConfirmEnabled ? 'Desativar modo sem confirmação' : 'Ativar por 5 minutos'}
+          </button>
+          {skipActionConfirmEnabled && skipActionConfirmUntil && (
+            <p className="text-xs text-green-700 mt-3">
+              Ativo até {new Date(Number(skipActionConfirmUntil)).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+
         {/* CSV Import */}
         <div className="bg-card rounded-xl shadow-sm border border-border p-6">
           <h2 className="text-lg font-semibold mb-3">Importar Clientes (CSV)</h2>
@@ -700,7 +747,7 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
                     });
                   }
                   if (newClients.length === 0) { setCsvMessage('Nenhum cliente válido encontrado no CSV.'); return; }
-                  if (!window.confirm(`Importar ${newClients.length} clientes? (Existentes: ${clients.length})`)) return;
+                  if (!skipActionConfirmEnabled && !window.confirm(`Importar ${newClients.length} clientes? (Existentes: ${clients.length})`)) return;
                   void saveAllClientsToFirestore(uid, [...clients, ...newClients]).then(() => {
                     setCsvMessage(`✓ ${newClients.length} clientes importados com sucesso!`);
                   });
