@@ -30,6 +30,7 @@ export function FinancialSummary({ clients, settings, financeEntries = [] }: Pro
 
   Object.entries(totalsByMonth)
     .filter(([, totals]) => (totals.receita || 0) > 0 || (totals.despesa || 0) > 0)
+    .filter(([key]) => key >= getMonthKey(hoje))
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .forEach(([key, totals]) => {
       mesesDisponiveis.push(key);
@@ -38,7 +39,7 @@ export function FinancialSummary({ clients, settings, financeEntries = [] }: Pro
     });
 
   const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
-  const selectedMonth = mesesDisponiveis.includes(mesSelecionado) ? mesSelecionado : (mesesDisponiveis.at(-1) || mesAtual);
+  const selectedMonth = mesesDisponiveis.includes(mesSelecionado) ? mesSelecionado : (mesesDisponiveis[mesesDisponiveis.length - 1] || mesAtual);
 
   const receitaBruta = receitaPorMes[selectedMonth] || 0;
   const despesas = despesaPorMes[selectedMonth] || 0;

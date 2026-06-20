@@ -81,7 +81,9 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     const keys = new Set<string>([currentMonth]);
     entries.forEach((entry) => keys.add(getMonthKeyFromIsoDate(entry.data)));
     Object.keys(totalsByMonth).forEach((month) => keys.add(month));
-    return Array.from(keys).sort((a, b) => b.localeCompare(a));
+    return Array.from(keys)
+      .filter((month) => month >= currentMonth)
+      .sort((a, b) => b.localeCompare(a));
   }, [currentMonth, entries, totalsByMonth]);
 
   const hasFinanceData = months.some((month) => {
@@ -93,9 +95,9 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
   const filteredEntries = useMemo(
     () => entries
-      .filter((entry) => getMonthKeyFromIsoDate(entry.data) === selectedMonth)
+      .filter((entry) => getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth)
       .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm)),
-    [entries, selectedMonth],
+    [entries, effectiveSelectedMonth],
   );
   const totals = totalsByMonth[effectiveSelectedMonth] || { receitas: 0, despesa: 0 };
   const previousMonthKey = getPreviousMonthKey(effectiveSelectedMonth);
@@ -234,6 +236,8 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     deleteEntry(entryId);
   };
 
+  const safeMonths = months.filter((month) => month >= currentMonth);
+
   const handleEditEntry = (entryId: string) => {
     const entry = entries.find((item) => item.id === entryId);
     if (!entry) return;
@@ -256,6 +260,14 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-sm text-gray-500">Carregando financeiro...</div>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(entries) || !Array.isArray(products)) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-sm text-gray-500">Preparando financeiro...</div>
       </div>
     );
   }
@@ -286,7 +298,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       </div>
 
       <div className="flex gap-2 mb-4 overflow-x-auto">
-        {months.map((month) => (
+        {safeMonths.map((month) => (
           <button
             key={month}
             type="button"
