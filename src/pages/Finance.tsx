@@ -213,6 +213,20 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     resetEntryForm();
   };
 
+  const handleDeleteProduct = (productId: string) => {
+    const product = products.find((item) => item.id === productId);
+    const name = product?.nome || 'este produto';
+    if (!window.confirm(`Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
+    deleteProduct(productId);
+  };
+
+  const handleDeleteEntry = (entryId: string) => {
+    const entry = entries.find((item) => item.id === entryId);
+    const name = entry?.descricao || 'este lançamento';
+    if (!window.confirm(`Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
+    deleteEntry(entryId);
+  };
+
   const handleEditEntry = (entryId: string) => {
     const entry = entries.find((item) => item.id === entryId);
     if (!entry) return;
@@ -412,7 +426,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => deleteProduct(product.id)}
+                  onClick={() => handleDeleteProduct(product.id)}
                   className="text-xs text-red-600 font-medium hover:underline"
                 >
                   Excluir
@@ -574,7 +588,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteEntry(entry.id)}
+                      onClick={() => handleDeleteEntry(entry.id)}
                       className="text-xs text-red-600 font-medium hover:underline"
                     >
                       Excluir
