@@ -582,7 +582,7 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
           {waError && <p className="text-sm text-red-600 mt-2">{waError}</p>}
         </div>
 
-        <div className="sticky top-4 z-20 mb-6 rounded-3xl border-4 border-amber-500 bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 p-5 shadow-[0_12px_30px_rgba(245,158,11,0.22)]">
+        <div className="mb-6 rounded-3xl border-4 border-amber-500 bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 p-5 shadow-[0_12px_30px_rgba(245,158,11,0.22)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-2xl font-black text-white shadow-lg">
