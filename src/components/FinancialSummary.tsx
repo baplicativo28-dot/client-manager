@@ -28,18 +28,20 @@ export function FinancialSummary({ clients, settings, financeEntries = [] }: Pro
   const despesaPorMes: Record<string, number> = {};
   const mesesDisponiveis: string[] = [];
 
-  for (let i = 2; i >= 0; i--) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    const key = getMonthKey(d);
-    mesesDisponiveis.push(key);
-    receitaPorMes[key] = totalsByMonth[key]?.receita || 0;
-    despesaPorMes[key] = totalsByMonth[key]?.despesa || 0;
-  }
+  Object.entries(totalsByMonth)
+    .filter(([, totals]) => (totals.receita || 0) > 0 || (totals.despesa || 0) > 0)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .forEach(([key, totals]) => {
+      mesesDisponiveis.push(key);
+      receitaPorMes[key] = totals.receita || 0;
+      despesaPorMes[key] = totals.despesa || 0;
+    });
 
   const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
+  const selectedMonth = mesesDisponiveis.includes(mesSelecionado) ? mesSelecionado : (mesesDisponiveis.at(-1) || mesAtual);
 
-  const receitaBruta = receitaPorMes[mesSelecionado] || 0;
-  const despesas = despesaPorMes[mesSelecionado] || 0;
+  const receitaBruta = receitaPorMes[selectedMonth] || 0;
+  const despesas = despesaPorMes[selectedMonth] || 0;
   const resultado = receitaBruta - despesas;
   const emConfianca = activeClients.filter((c) => c.trustRenewal).length;
   const activeWithServer = useMemo(() => activeClients.filter((client) => {
@@ -66,7 +68,7 @@ export function FinancialSummary({ clients, settings, financeEntries = [] }: Pro
             key={mes}
             onClick={() => setMesSelecionado(mes)}
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              mes === mesSelecionado
+              mes === selectedMonth
                 ? 'bg-accent text-white'
                 : 'bg-card border border-border hover:bg-gray-50'
             }`}

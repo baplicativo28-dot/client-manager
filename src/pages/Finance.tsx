@@ -18,7 +18,7 @@ interface FinancePageProps {
 }
 
 const categoryLabels: Record<FinanceCategory, string> = {
-  licenca: 'LicenÃ§a',
+  licenca: 'Licença',
   aparelho: 'Aparelho',
   fornecedor: 'Fornecedor',
   rotina: 'Rotina',
@@ -245,7 +245,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <Link to="/" className="hover:text-accent">Clientes</Link>
-            <span>â€¢</span>
+            <span>›</span>
             <span>Financeiro</span>
           </div>
           <h1 className="text-2xl font-bold">Financeiro</h1>
@@ -296,8 +296,8 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
       <div className="bg-card rounded-xl shadow-sm border border-border p-5 mb-6">
         <div className="flex flex-col gap-1 mb-4">
-          <h2 className="text-lg font-semibold">GrÃ¡fico de vendas</h2>
-          <p className="text-sm text-gray-500">ComparaÃ§Ã£o da receita deste mÃªs com o mÃªs anterior, incluindo renovaÃ§Ãµes e lanÃ§amentos do financeiro.</p>
+          <h2 className="text-lg font-semibold">Gráfico de vendas</h2>
+          <p className="text-sm text-gray-500">Comparação da receita deste mês com o mês anterior, incluindo renovações e lançamentos do financeiro.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
           <div className="h-64 flex items-end gap-4">
@@ -318,19 +318,19 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
           </div>
           <div className="space-y-3">
             <div className="rounded-xl bg-gray-50 border border-border p-4">
-              <p className="text-sm text-gray-500">MÃªs selecionado</p>
+              <p className="text-sm text-gray-500">Mês selecionado</p>
               <p className="text-lg font-semibold capitalize">{getMonthLabel(selectedMonth)}</p>
               <p className="text-xl font-bold text-success mt-2">{formatarValor(totals.receita)}</p>
             </div>
             <div className="rounded-xl bg-gray-50 border border-border p-4">
-              <p className="text-sm text-gray-500">MÃªs anterior</p>
+              <p className="text-sm text-gray-500">Mês anterior</p>
               {previousTotals ? (
                 <>
                   <p className="text-lg font-semibold capitalize">{getMonthLabel(previousMonthKey)}</p>
                   <p className="text-xl font-bold mt-2">{formatarValor(previousTotals.receita)}</p>
                 </>
               ) : (
-                <p className="text-sm text-gray-500 mt-2">Ainda nÃ£o hÃ¡ dados do mÃªs anterior para comparar.</p>
+                <p className="text-sm text-gray-500 mt-2">Ainda não há dados do mês anterior para comparar.</p>
               )}
             </div>
           </div>
@@ -347,7 +347,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 onClick={resetProductForm}
                 className="text-sm font-medium text-gray-500 hover:text-gray-800"
               >
-                Cancelar ediÃ§Ã£o
+                Cancelar edição
               </button>
             )}
           </div>
@@ -392,7 +392,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             onClick={handleAddProduct}
             className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
           >
-            {editingProductId ? 'Salvar alteraÃ§Ã£o' : 'Salvar produto'}
+            {editingProductId ? 'Salvar alteração' : 'Salvar produto'}
           </button>
 
           <div className="mt-5 space-y-3">
@@ -407,7 +407,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                   <p className="font-medium">{product.nome}</p>
                   <p className="text-sm text-gray-500">{categoryLabels[product.categoria]}</p>
                   <p className="text-sm text-gray-600 mt-1">
-                    Custo: {formatarValor(product.custo)} Â· Venda: {formatarValor(product.valorVenda)}
+                    Custo: {formatarValor(product.custo)} • Venda: {formatarValor(product.valorVenda)}
                   </p>
                 </button>
                 <button
@@ -424,14 +424,14 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold">{editingEntryId ? 'Editar lanÃ§amento' : 'LanÃ§ar venda ou despesa'}</h2>
+            <h2 className="text-lg font-semibold">{editingEntryId ? 'Editar lançamento' : 'Lançar venda ou despesa'}</h2>
             {editingEntryId && (
               <button
                 type="button"
                 onClick={resetEntryForm}
                 className="text-sm font-medium text-gray-500 hover:text-gray-800"
               >
-                Cancelar ediÃ§Ã£o
+                Cancelar edição
               </button>
             )}
           </div>
@@ -468,7 +468,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
               type="text"
               value={entryForm.descricao}
               onChange={(e) => setEntryForm((current) => ({ ...current, descricao: e.target.value }))}
-              placeholder="DescriÃ§Ã£o"
+              placeholder="Descrição"
               className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
             />
             <input
@@ -508,7 +508,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             <textarea
               value={entryForm.observacao}
               onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
-              placeholder="ObservaÃ§Ã£o (opcional)"
+              placeholder="Observação (opcional)"
               rows={3}
               className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
             />
@@ -518,18 +518,18 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             onClick={handleSaveEntry}
             className="mt-4 bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
           >
-            {editingEntryId ? 'Salvar alteraÃ§Ã£o' : 'Salvar lanÃ§amento'}
+            {editingEntryId ? 'Salvar alteração' : 'Salvar lançamento'}
           </button>
         </div>
       </div>
 
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
         <div className="p-5 border-b border-border">
-          <h2 className="text-lg font-semibold">LanÃ§amentos do mÃªs</h2>
+          <h2 className="text-lg font-semibold">Lançamentos do mês</h2>
         </div>
         <div className="divide-y divide-border">
           {filteredEntries.length === 0 && (
-            <p className="p-5 text-sm text-gray-500">Nenhum lanÃ§amento neste mÃªs.</p>
+            <p className="p-5 text-sm text-gray-500">Nenhum lançamento neste mês.</p>
           )}
           {filteredEntries.map((entry) => {
             const quantity = entry.quantidade || 1;
@@ -552,7 +552,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mt-1">
-                    Data: {new Date(entry.data + 'T00:00:00').toLocaleDateString('pt-BR')} Â· Quantidade: {quantity}
+                    Data: {new Date(entry.data + 'T00:00:00').toLocaleDateString('pt-BR')} · Quantidade: {quantity}
                   </p>
                   {entry.observacao && <p className="text-sm text-gray-600 mt-1">{entry.observacao}</p>}
                 </div>
