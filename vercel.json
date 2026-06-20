@@ -4,12 +4,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "experimentalServices": {
-    "whatsapp-server": {
-      "root": "whatsapp-server",
-      "entrypoint": "index.js",
-      "routePrefix": "/"
-    }
-  }
+  ]
 }
