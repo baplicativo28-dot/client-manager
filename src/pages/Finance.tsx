@@ -84,14 +84,21 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     return Array.from(keys).sort((a, b) => b.localeCompare(a));
   }, [currentMonth, entries, totalsByMonth]);
 
+  const hasFinanceData = months.some((month) => {
+    const monthTotals = totalsByMonth[month];
+    return (monthTotals?.receita || 0) > 0 || (monthTotals?.despesa || 0) > 0 || entries.some((entry) => getMonthKeyFromIsoDate(entry.data) === month);
+  });
+
+  const effectiveSelectedMonth = months.includes(selectedMonth) ? selectedMonth : (months[0] || currentMonth);
+
   const filteredEntries = useMemo(
     () => entries
       .filter((entry) => getMonthKeyFromIsoDate(entry.data) === selectedMonth)
       .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm)),
     [entries, selectedMonth],
   );
-  const totals = totalsByMonth[selectedMonth] || { receitas: 0, despesa: 0 };
-  const previousMonthKey = getPreviousMonthKey(selectedMonth);
+  const totals = totalsByMonth[effectiveSelectedMonth] || { receitas: 0, despesa: 0 };
+  const previousMonthKey = getPreviousMonthKey(effectiveSelectedMonth);
   const previousTotals = totalsByMonth[previousMonthKey] || null;
   const chartItems = [
     previousTotals
@@ -102,7 +109,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         }
       : null,
     {
-      label: getMonthLabel(selectedMonth),
+          label: getMonthLabel(effectiveSelectedMonth),
       value: totals.receita,
       color: 'bg-accent',
     },
@@ -285,13 +292,19 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             type="button"
             onClick={() => setSelectedMonth(month)}
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              month === selectedMonth ? 'bg-accent text-white' : 'bg-card border border-border hover:bg-gray-50'
+              month === effectiveSelectedMonth ? 'bg-accent text-white' : 'bg-card border border-border hover:bg-gray-50'
             }`}
           >
             {getMonthLabel(month)}
           </button>
         ))}
       </div>
+
+      {!hasFinanceData && (
+        <div className="mb-6 rounded-xl border border-dashed border-border bg-card p-5 text-sm text-gray-500">
+          Nenhum dado financeiro ainda. Você já pode cadastrar produtos, vendas ou despesas abaixo.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
@@ -333,7 +346,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
           <div className="space-y-3">
             <div className="rounded-xl bg-gray-50 border border-border p-4">
               <p className="text-sm text-gray-500">Mês selecionado</p>
-              <p className="text-lg font-semibold capitalize">{getMonthLabel(selectedMonth)}</p>
+              <p className="text-lg font-semibold capitalize">{getMonthLabel(effectiveSelectedMonth)}</p>
               <p className="text-xl font-bold text-success mt-2">{formatarValor(totals.receita)}</p>
             </div>
             <div className="rounded-xl bg-gray-50 border border-border p-4">
