@@ -2,14 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Verifica se o usuário autenticado não está bloqueado
+    // Verifica se o usuário autenticado não está bloqueado.
+    // Usa != true para lidar com campo ausente (null != true → true).
     function isNotBlocked() {
-      return !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.blocked;
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data.blocked != true;
     }
 
     // Verifica se o usuário autenticado é admin
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data.role == 'admin';
     }
 
     // Perfis de usuário
@@ -19,6 +22,9 @@ service cloud.firestore {
 
       // Usuário cria o próprio perfil (primeiro login → role: admin)
       allow create: if request.auth != null && request.auth.uid == uid;
+
+      // Usuário atualiza o próprio perfil
+      allow update: if request.auth != null && request.auth.uid == uid;
 
       // Admin lê perfis dos seus revendedores
       allow read: if request.auth != null
@@ -32,45 +38,48 @@ service cloud.firestore {
                      && request.resource.data.role == 'reseller'
                      && isNotBlocked();
 
-      // Admin atualiza apenas o campo blocked nos seus revendedores
+      // Admin atualiza revendedores seus (blocked, etc.)
       allow update: if request.auth != null
                      && isAdmin()
                      && resource.data.createdBy == request.auth.uid
-                     && isNotBlocked()
-                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked']);
+                     && isNotBlocked();
 
-    // Admin deleta perfil de revendedor que criou
-    allow delete: if request.auth != null
-                   && isAdmin()
-                   && resource.data.createdBy == request.auth.uid
-                   && isNotBlocked();
+      // Admin deleta perfil de revendedor que criou
+      allow delete: if request.auth != null
+                     && isAdmin()
+                     && resource.data.createdBy == request.auth.uid
+                     && isNotBlocked();
     }
 
     // Clientes: acesso somente ao próprio usuário, somente se não bloqueado
     match /users/{uid}/clients/{clientId} {
-    allow read, write: if request.auth != null && isNotBlocked() &&
-                          (request.auth.uid == uid ||
-                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
+      allow read, write: if request.auth != null
+                          && isNotBlocked()
+                          && (request.auth.uid == uid
+                              || (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
 
     // Configurações: acesso somente ao próprio usuário, somente se não bloqueado
-    match /users/{uid}/settings/{doc} {
-    allow read, write: if request.auth != null && isNotBlocked() &&
-                          (request.auth.uid == uid ||
-                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
+    match /users/{uid}/settings/{settingsDoc} {
+      allow read, write: if request.auth != null
+                          && isNotBlocked()
+                          && (request.auth.uid == uid
+                              || (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
 
     // Financeiro: produtos e lançamentos do próprio usuário, somente se não bloqueado
     match /users/{uid}/financeProducts/{docId} {
-    allow read, write: if request.auth != null && isNotBlocked() &&
-                          (request.auth.uid == uid ||
-                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
+      allow read, write: if request.auth != null
+                          && isNotBlocked()
+                          && (request.auth.uid == uid
+                              || (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
 
     match /users/{uid}/financeEntries/{docId} {
-    allow read, write: if request.auth != null && isNotBlocked() &&
-                          (request.auth.uid == uid ||
-                           (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
+      allow read, write: if request.auth != null
+                          && isNotBlocked()
+                          && (request.auth.uid == uid
+                              || (isAdmin() && get(/databases/$(database)/documents/users/$(uid)).data.createdBy == request.auth.uid));
     }
   }
 }

@@ -45,13 +45,15 @@ export async function deleteClientFromFirestore(uid: string, id: string): Promis
 }
 
 export async function saveAllClientsToFirestore(uid: string, clients: Client[]): Promise<void> {
-  const batch = writeBatch(db);
-  // Delete existing documents first by overwriting with a batch
-  clients.forEach((client) => {
-    const ref = clientDocRef(uid, client.id);
-    batch.set(ref, client);
-  });
-  await batch.commit();
+  const CHUNK = 400;
+  for (let i = 0; i < clients.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    clients.slice(i, i + CHUNK).forEach((client) => {
+      const ref = clientDocRef(uid, client.id);
+      batch.set(ref, client);
+    });
+    await batch.commit();
+  }
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -104,7 +106,10 @@ export async function getExpiredClientsFromFirestore(
 }
 
 export async function deleteClientsFromFirestore(uid: string, clientIds: string[]): Promise<void> {
-  const batch = writeBatch(db);
-  clientIds.forEach((id) => batch.delete(clientDocRef(uid, id)));
-  await batch.commit();
+  const CHUNK = 400;
+  for (let i = 0; i < clientIds.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    clientIds.slice(i, i + CHUNK).forEach((id) => batch.delete(clientDocRef(uid, id)));
+    await batch.commit();
+  }
 }

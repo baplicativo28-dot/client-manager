@@ -6,6 +6,7 @@ import {
   onSnapshot,
   setDoc,
   updateDoc,
+  deleteDoc,
   doc,
   getDocs,
   writeBatch,
@@ -88,10 +89,9 @@ export function useResellers(adminUid: string) {
       await batch.commit();
     }
 
-    // Keep the user profile document but mark as blocked so they can't log in
-    await import('firebase/firestore').then(({ updateDoc, doc: firestoreDoc }) =>
-      updateDoc(firestoreDoc(db, 'users', uid), { blocked: true, deletedAt: new Date().toISOString() }),
-    );
+    // Delete the user profile document so the account is completely wiped
+    // (Firebase Auth account remains, but on next login a fresh admin profile is created)
+    await deleteDoc(doc(db, 'users', uid));
   }, []);
 
   const sendPasswordReset = useCallback(async (email: string): Promise<void> => {

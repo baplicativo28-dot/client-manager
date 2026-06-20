@@ -215,12 +215,13 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
     try {
       const count = await deleteAllClientsFromFirestore(uid);
       setDeleteAllFeedback(`✓ ${count} cliente(s) deletado(s) com sucesso.`);
-    } catch {
-      setDeleteAllFeedback('Erro ao deletar clientes. Tente novamente.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDeleteAllFeedback(`Erro: ${msg}`);
     } finally {
       setDeleteAllLoading(false);
       setShowDeleteAllModal(false);
-      setTimeout(() => setDeleteAllFeedback(''), 3000);
+      setTimeout(() => setDeleteAllFeedback(''), 5000);
     }
   };
 
