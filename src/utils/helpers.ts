@@ -1,11 +1,15 @@
 import type { Client, FinanceEntry, Settings, StatusCalculado } from '../types';
 
-export function calcularStatus(dataVencimento: string): StatusCalculado {
+export function calcularStatus(dataVencimento: string | null | undefined): StatusCalculado {
+  if (!dataVencimento || typeof dataVencimento !== 'string') return 'Expirado';
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const [y, m, d] = dataVencimento.split('-').map(Number);
+  const parts = dataVencimento.split('-').map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return 'Expirado';
+  const [y, m, d] = parts;
   const vencimento = new Date(y, m - 1, d);
+  if (Number.isNaN(vencimento.getTime())) return 'Expirado';
 
   const diffMs = vencimento.getTime() - hoje.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -16,7 +20,8 @@ export function calcularStatus(dataVencimento: string): StatusCalculado {
 }
 
 export function formatarValor(valor: number): string {
-  return valor.toLocaleString('pt-BR', {
+  const safe = typeof valor === 'number' && !Number.isNaN(valor) ? valor : 0;
+  return safe.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   });
@@ -105,34 +110,45 @@ export function formatarDataHora(dataISO: string): string {
 }
 
 export function getMonthKeyFromIsoDate(dateISO: string): string {
+  if (!dateISO || typeof dateISO !== 'string') return '';
   return dateISO.slice(0, 7);
 }
 
 export function getMonthLabel(yearMonth: string): string {
+  if (!yearMonth || yearMonth.length < 7 || !yearMonth.includes('-')) return '';
   const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month || Number.isNaN(year) || Number.isNaN(month)) return '';
   const date = new Date(year, month - 1);
   return date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 }
 
 export function getPreviousMonthKey(yearMonth: string): string {
+  if (!yearMonth || yearMonth.length < 7 || !yearMonth.includes('-')) return '';
   const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month || Number.isNaN(year) || Number.isNaN(month)) return '';
   const date = new Date(year, month - 2, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export function buildFinancialTotalsByMonth(
-  clients: Client[],
-  settings: Settings,
+  clients: Client[] = [],
+  settings: Settings | null | undefined,
   financeEntries: FinanceEntry[] = [],
 ): Record<string, { receita: number; despesa: number }> {
+  const safeClients = Array.isArray(clients) ? clients : [];
+  const safeEntries = Array.isArray(financeEntries) ? financeEntries : [];
+  const safeSettings = settings || { servidores: [] };
+
   const totals: Record<string, { receita: number; despesa: number }> = {};
   const currentMonthKey = getMonthKeyFromIsoDate(new Date().toISOString().split('T')[0]);
-  const activeClients = clients.filter((client) => !client.desativado);
-  const createdClients = clients.filter((client) => !client.desativado && client.situacao === 'Assinou' && !client.ultimaRenovacao);
+  const activeClients = safeClients.filter((client) => !client.desativado);
+  const createdClients = activeClients.filter((client) => client.situacao === 'Assinou' && !client.ultimaRenovacao);
   const serverCostMap: Record<string, number> = {};
 
-  (settings.servidores || []).forEach((server) => {
-    serverCostMap[server.nome] = server.custo;
+  (safeSettings.servidores || []).forEach((server) => {
+    if (server && typeof server.nome === 'string') {
+      serverCostMap[server.nome] = typeof server.custo === 'number' && !Number.isNaN(server.custo) ? server.custo : 0;
+    }
   });
 
   const ensureMonth = (monthKey: string) => {
@@ -149,8 +165,9 @@ export function buildFinancialTotalsByMonth(
     if (Number.isNaN(renewalDate.getTime())) return;
     const monthKey = `${renewalDate.getFullYear()}-${String(renewalDate.getMonth() + 1).padStart(2, '0')}`;
     if (!ensureMonth(monthKey)) return;
-    const months = client.mesesRenovados || 1;
-    totals[monthKey].receita += client.valor * months;
+    const months = typeof client.mesesRenovados === 'number' && !Number.isNaN(client.mesesRenovados) ? client.mesesRenovados : 1;
+    const valor = typeof client.valor === 'number' && !Number.isNaN(client.valor) ? client.valor : 0;
+    totals[monthKey].receita += valor * months;
     totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
   });
 
@@ -159,18 +176,22 @@ export function buildFinancialTotalsByMonth(
     if (Number.isNaN(createdDate.getTime())) return;
     const monthKey = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`;
     if (!ensureMonth(monthKey)) return;
-    totals[monthKey].receita += client.valor;
+    const valor = typeof client.valor === 'number' && !Number.isNaN(client.valor) ? client.valor : 0;
+    totals[monthKey].receita += valor;
     totals[monthKey].despesa += serverCostMap[client.servidor] || 0;
   });
 
-  financeEntries.forEach((entry) => {
+  safeEntries.forEach((entry) => {
+    if (!entry || typeof entry.data !== 'string') return;
     const monthKey = getMonthKeyFromIsoDate(entry.data);
-    if (!monthKey) return;
+    if (!monthKey || monthKey.length < 7) return;
     if (!ensureMonth(monthKey)) return;
-    const quantity = entry.quantidade || 1;
-    totals[monthKey].despesa += entry.custo * quantity;
+    const quantity = typeof entry.quantidade === 'number' && !Number.isNaN(entry.quantidade) ? entry.quantidade : 1;
+    const custo = typeof entry.custo === 'number' && !Number.isNaN(entry.custo) ? entry.custo : 0;
+    const valorVenda = typeof entry.valorVenda === 'number' && !Number.isNaN(entry.valorVenda) ? entry.valorVenda : 0;
+    totals[monthKey].despesa += custo * quantity;
     if (entry.tipo === 'venda') {
-      totals[monthKey].receita += entry.valorVenda * quantity;
+      totals[monthKey].receita += valorVenda * quantity;
     }
   });
 

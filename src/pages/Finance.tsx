@@ -67,39 +67,45 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     custo: '',
     valorVenda: '',
   });
+  const safeClients = Array.isArray(clients) ? clients : [];
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const safeProducts = Array.isArray(products) ? products : [];
+  const safeSettings = settings || { servidores: [] };
+
   const totalsByMonth = useMemo(
-    () => buildFinancialTotalsByMonth(clients, settings, entries),
-    [clients, entries, settings],
+    () => buildFinancialTotalsByMonth(safeClients, safeSettings, safeEntries),
+    [safeClients, safeEntries, safeSettings],
   );
 
   const sortedProducts = useMemo(
-    () => [...products].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
-    [products],
+    () => [...safeProducts].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
+    [safeProducts],
   );
 
   const months = useMemo(() => {
     const keys = new Set<string>([currentMonth]);
-    entries.forEach((entry) => keys.add(getMonthKeyFromIsoDate(entry.data)));
+    safeEntries.forEach((entry) => keys.add(getMonthKeyFromIsoDate(entry.data)));
     Object.keys(totalsByMonth).forEach((month) => keys.add(month));
     return Array.from(keys)
       .filter((month) => month >= currentMonth)
       .sort((a, b) => b.localeCompare(a));
-  }, [currentMonth, entries, totalsByMonth]);
+  }, [currentMonth, safeEntries, totalsByMonth]);
+  const safeMonths = months;
 
   const hasFinanceData = months.some((month) => {
     const monthTotals = totalsByMonth[month];
-    return (monthTotals?.receita || 0) > 0 || (monthTotals?.despesa || 0) > 0 || entries.some((entry) => getMonthKeyFromIsoDate(entry.data) === month);
+    return (monthTotals?.receita || 0) > 0 || (monthTotals?.despesa || 0) > 0 || safeEntries.some((entry) => getMonthKeyFromIsoDate(entry.data) === month);
   });
 
   const effectiveSelectedMonth = months.includes(selectedMonth) ? selectedMonth : (months[0] || currentMonth);
 
   const filteredEntries = useMemo(
-    () => entries
-      .filter((entry) => getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth)
-      .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm)),
-    [entries, effectiveSelectedMonth],
+    () => safeEntries
+      .filter((entry) => typeof entry?.data === 'string' && getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth)
+      .sort((a, b) => (String(b.data).localeCompare(String(a.data))) || (String(b.criadoEm).localeCompare(String(a.criadoEm)))),
+    [safeEntries, effectiveSelectedMonth],
   );
-  const totals = totalsByMonth[effectiveSelectedMonth] || { receitas: 0, despesa: 0 };
+  const totals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
   const previousMonthKey = getPreviousMonthKey(effectiveSelectedMonth);
   const previousTotals = totalsByMonth[previousMonthKey] || null;
   const chartItems = [
@@ -177,7 +183,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   };
 
   const handleEditProduct = (productId: string) => {
-    const product = products.find((item) => item.id === productId);
+    const product = safeProducts.find((item) => item.id === productId);
     if (!product) return;
     setEditingProductId(product.id);
     setProductForm({
@@ -223,23 +229,21 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   };
 
   const handleDeleteProduct = (productId: string) => {
-    const product = products.find((item) => item.id === productId);
+    const product = safeProducts.find((item) => item.id === productId);
     const name = product?.nome || 'este produto';
     if (!window.confirm(`Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
     deleteProduct(productId);
   };
 
   const handleDeleteEntry = (entryId: string) => {
-    const entry = entries.find((item) => item.id === entryId);
+    const entry = safeEntries.find((item) => item.id === entryId);
     const name = entry?.descricao || 'este lançamento';
     if (!window.confirm(`Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
     deleteEntry(entryId);
   };
 
-  const safeMonths = months.filter((month) => month >= currentMonth);
-
   const handleEditEntry = (entryId: string) => {
-    const entry = entries.find((item) => item.id === entryId);
+    const entry = safeEntries.find((item) => item.id === entryId);
     if (!entry) return;
     setEditingEntryId(entry.id);
     setEntryForm({
@@ -255,6 +259,18 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  try {
+    // mantém a página viva mesmo se algum dado antigo estiver inconsistente
+  } catch {
+    return (
+      <div className="min-h-screen p-4 md:p-6 max-w-7xl mx-auto flex items-center justify-center">
+        <div className="rounded-xl border border-border bg-card p-6 text-sm text-gray-600">
+          Não foi possível carregar os dados do financeiro, mas você já pode tentar novamente.
+        </div>
+      </div>
+    );
+  }
 
   if (financeLoading || clientsLoading || settingsLoading) {
     return (
