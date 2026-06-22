@@ -242,6 +242,47 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     deleteEntry(entryId);
   };
 
+  const handleExportPDF = () => {
+    const selectedTotals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
+    const selectedProfit = selectedTotals.receita - selectedTotals.despesa;
+    const html = `
+      <html>
+        <head>
+          <title>Relatório Financeiro</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            h1 { margin: 0 0 8px; font-size: 24px; }
+            h2 { margin: 24px 0 8px; font-size: 18px; }
+            .meta { margin-bottom: 6px; font-size: 14px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 8px 0; }
+            .muted { color: #6b7280; }
+            ul { padding-left: 18px; }
+          </style>
+        </head>
+        <body>
+          <h1>Relatório Financeiro</h1>
+          <div class="meta"><strong>Mês:</strong> ${getMonthLabel(effectiveSelectedMonth)}</div>
+          <div class="card"><strong>Receita:</strong> ${formatarValor(selectedTotals.receita)}</div>
+          <div class="card"><strong>Despesas:</strong> ${formatarValor(selectedTotals.despesa)}</div>
+          <div class="card"><strong>Lucro:</strong> ${formatarValor(selectedProfit)}</div>
+          <h2>Produtos recorrentes</h2>
+          <ul>
+            ${safeProducts.slice(0, 18).map((product) => `<li>${product.nome} — ${categoryLabels[product.categoria]} — Custo ${formatarValor(product.custo)} — Venda ${formatarValor(product.valorVenda)}</li>`).join('')}
+          </ul>
+          <h2>Lançamentos do mês</h2>
+          ${filteredEntries.slice(0, 40).map((entry) => `<div class="card">${entry.data} | ${entry.descricao} | ${entryTypeLabels[entry.tipo]} | ${formatarValor(entry.valorVenda || entry.custo)}</div>`).join('')}
+        </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 300);
+  };
+
   const handleEditEntry = (entryId: string) => {
     const entry = safeEntries.find((item) => item.id === entryId);
     if (!entry) return;
@@ -442,13 +483,22 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
               className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
-          <button
-            type="button"
-            onClick={handleAddProduct}
-            className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
-          >
-            {editingProductId ? 'Salvar alteração' : 'Salvar produto'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleAddProduct}
+              className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
+            >
+              {editingProductId ? 'Salvar alteração' : 'Salvar produto'}
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+            >
+              Gerar PDF
+            </button>
+          </div>
 
           <div className="mt-5 space-y-3">
             {sortedProducts.length === 0 && <p className="text-sm text-gray-500">Nenhum produto cadastrado.</p>}
