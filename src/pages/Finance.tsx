@@ -142,7 +142,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   };
 
   const applyProductToForm = (productId: string) => {
-    const selected = products.find((item) => item.id === productId);
+    const selected = safeProducts.find((item) => item.id === productId);
     if (!selected) {
       setEntryForm((current) => ({ ...current, productId: '', descricao: '', custo: '', valorVenda: '' }));
       return;

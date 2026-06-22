@@ -460,17 +460,17 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
 
     return clientsWithStatus
       .filter((client) => {
-        if (client.desativado || client.lembreteEnviado) return false;
+        if (client.desativado) return false;
         const dueDate = client.trustRenewal
           ? (client.trustPaymentDate || client.dataVencimento)
           : client.dataVencimento;
         if (!dueDate) return false;
 
         if (client.trustRenewal) {
-          return dueDate === hojeStr;
+          return dueDate <= hojeStr && (!client.lembreteEnviado || client.lastReminderResetDate !== hojeStr);
         }
 
-        return dueDate <= amanhaStr;
+        return dueDate <= amanhaStr && (!client.lembreteEnviado || client.lastReminderResetDate !== hojeStr);
       })
       .map((client) => {
         const dueDate = client.trustRenewal
