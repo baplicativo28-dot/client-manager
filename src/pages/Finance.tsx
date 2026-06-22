@@ -504,24 +504,29 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             {sortedProducts.length === 0 && <p className="text-sm text-gray-500">Nenhum produto cadastrado.</p>}
             {sortedProducts.map((product) => (
               <div key={product.id} className="border border-border rounded-xl p-4 flex items-start justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleEditProduct(product.id)}
-                  className="flex-1 min-w-0 text-left"
-                >
+                <div className="flex-1 min-w-0 text-left">
                   <p className="font-medium">{product.nome}</p>
                   <p className="text-sm text-gray-500">{categoryLabels[product.categoria]}</p>
                   <p className="text-sm text-gray-600 mt-1">
                     Custo: {formatarValor(product.custo)} • Venda: {formatarValor(product.valorVenda)}
                   </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteProduct(product.id)}
-                  className="text-xs text-red-600 font-medium hover:underline"
-                >
-                  Excluir
-                </button>
+                </div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleEditProduct(product.id)}
+                    className="text-xs text-blue-600 font-medium hover:underline"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProduct(product.id)}
+                    className="text-xs text-red-600 font-medium hover:underline"
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
             ))}
           </div>
