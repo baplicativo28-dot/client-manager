@@ -50,6 +50,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [showProductModal, setShowProductModal] = useState(false);
   const [entryForm, setEntryForm] = useState({
     productId: '',
     tipo: 'venda' as FinanceEntryType,
@@ -174,6 +175,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     }
 
     setEditingProductId(null);
+    setShowProductModal(false);
     setProductForm({
       nome: '',
       categoria: 'licenca',
@@ -186,6 +188,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     const product = safeProducts.find((item) => item.id === productId);
     if (!product) return;
     setEditingProductId(product.id);
+    setShowProductModal(true);
     setProductForm({
       nome: product.nome,
       categoria: product.categoria,
@@ -197,6 +200,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
   const resetProductForm = () => {
     setEditingProductId(null);
+    setShowProductModal(false);
     setProductForm({
       nome: '',
       categoria: 'licenca',
@@ -436,68 +440,23 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold">{editingProductId ? 'Editar produto recorrente' : 'Produtos recorrentes'}</h2>
-            {editingProductId && (
+            <h2 className="text-lg font-semibold">Produtos recorrentes</h2>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={resetProductForm}
-                className="text-sm font-medium text-gray-500 hover:text-gray-800"
+                onClick={() => { setEditingProductId(null); setShowProductModal(true); setProductForm({ nome: '', categoria: 'licenca', custo: '', valorVenda: '' }); }}
+                className="text-sm font-medium text-blue-600 hover:underline"
               >
-                Cancelar edição
+                + Novo produto
               </button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            <input
-              type="text"
-              value={productForm.nome}
-              onChange={(e) => setProductForm((current) => ({ ...current, nome: e.target.value }))}
-              placeholder="Nome do produto"
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <select
-              value={productForm.categoria}
-              onChange={(e) => setProductForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              {Object.entries(categoryLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={productForm.custo}
-              onChange={(e) => setProductForm((current) => ({ ...current, custo: e.target.value }))}
-              placeholder="Custo"
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={productForm.valorVenda}
-              onChange={(e) => setProductForm((current) => ({ ...current, valorVenda: e.target.value }))}
-              placeholder="Valor de venda"
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleAddProduct}
-              className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
-            >
-              {editingProductId ? 'Salvar alteração' : 'Salvar produto'}
-            </button>
-            <button
-              type="button"
-              onClick={handleExportPDF}
-              className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
-            >
-              Gerar PDF
-            </button>
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+              >
+                Gerar PDF
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 space-y-3">
@@ -531,6 +490,33 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             ))}
           </div>
         </div>
+
+        {showProductModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-xl shadow-lg w-full max-w-lg">
+              <div className="p-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h3 className="text-xl font-semibold">{editingProductId ? 'Editar produto recorrente' : 'Novo produto recorrente'}</h3>
+                  <button type="button" onClick={resetProductForm} className="text-sm font-medium text-gray-500 hover:text-gray-800">
+                    Cancelar edição
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <input type="text" value={productForm.nome} onChange={(e) => setProductForm((current) => ({ ...current, nome: e.target.value }))} placeholder="Nome do produto" className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <select value={productForm.categoria} onChange={(e) => setProductForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))} className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent">
+                    {Object.entries(categoryLabels).map(([value, label]) => (<option key={value} value={value}>{label}</option>))}
+                  </select>
+                  <input type="number" min="0" step="0.01" value={productForm.custo} onChange={(e) => setProductForm((current) => ({ ...current, custo: e.target.value }))} placeholder="Custo" className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <input type="number" min="0" step="0.01" value={productForm.valorVenda} onChange={(e) => setProductForm((current) => ({ ...current, valorVenda: e.target.value }))} placeholder="Valor de venda" className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent" />
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={handleAddProduct} className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors">{editingProductId ? 'Salvar alteração' : 'Salvar produto'}</button>
+                  <button type="button" onClick={resetProductForm} className="border border-border rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
