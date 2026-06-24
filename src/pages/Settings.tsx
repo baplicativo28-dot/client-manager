@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSettings } from '../hooks/useSettings';
 import { useClients } from '../hooks/useClients';
 import { useAuth } from '../contexts/AuthContext';
-import type { ServerCost, Client } from '../types';
+import type { ServerCost, Client, Settings } from '../types';
 import { generateId } from '../utils/storage';
 import { saveAllClientsToFirestore, saveSettingsToFirestore, deleteAllClientsFromFirestore } from '../utils/firestoreUtils';
 import { exportBackup, importBackup, exportClientsToCSV } from '../utils/backup';
+import { ConfirmDialog, type ConfirmDialogState } from '../components/ConfirmDialog';
 
 interface SettingsPageProps {
   uid: string;
@@ -34,11 +35,8 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
   const [deleteAllLoading, setDeleteAllLoading] = useState(false);
   const [deleteAllFeedback, setDeleteAllFeedback] = useState('');
   const [csvEmailFeedback, setCsvEmailFeedback] = useState('');
-  const [skipActionConfirmUntil, setSkipActionConfirmUntil] = useState<string | null>(
-    localStorage.getItem('cm_skip_action_confirm_until')
-  );
-  const skipActionConfirmEnabled =
-    !!skipActionConfirmUntil && Date.now() < Number(skipActionConfirmUntil);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [pendingImportData, setPendingImportData] = useState<{ clients: Client[]; settings: unknown } | null>(null);
 
   const [whatsappServerUrl, setWhatsappServerUrl] = useState(settings.whatsappServerUrl ?? '');
   const [whatsappServerKey, setWhatsappServerKey] = useState(settings.whatsappServerKey ?? '');
@@ -65,14 +63,6 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const savedValue = localStorage.getItem('cm_skip_action_confirm_until');
-      setSkipActionConfirmUntil(savedValue);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleSave = async () => {
     // Cascade server name changes to clients
@@ -112,16 +102,11 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const toggleSkipActionConfirm = () => {
-    if (skipActionConfirmEnabled) {
-      localStorage.removeItem('cm_skip_action_confirm_until');
-      setSkipActionConfirmUntil(null);
-      return;
-    }
-
-    const expiresAt = Date.now() + 5 * 60 * 1000;
-    localStorage.setItem('cm_skip_action_confirm_until', String(expiresAt));
-    setSkipActionConfirmUntil(String(expiresAt));
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog) return;
+    const action = confirmDialog.onConfirm;
+    setConfirmDialog(null);
+    await action();
   };
 
   const addServidor = () => {
@@ -157,11 +142,21 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
 
   const handleImportBackup = async (file: File | null) => {
     if (!file) return;
-    if (!skipActionConfirmEnabled && !window.confirm('Isso substituirá todos os dados atuais. Deseja continuar?')) return;
     const data = await importBackup(file);
-    await saveAllClientsToFirestore(uid, data.clients);
-    await saveSettingsToFirestore(uid, data.settings);
-    window.location.reload();
+    setPendingImportData(data);
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Isso substituirá todos os dados atuais. Deseja continuar?`,
+      confirmText: 'Importar',
+      cancelText: 'Cancelar',
+      destructive: true,
+      onConfirm: async () => {
+        if (!pendingImportData) return;
+        await saveAllClientsToFirestore(uid, pendingImportData.clients);
+        await saveSettingsToFirestore(uid, pendingImportData.settings as Settings);
+        window.location.reload();
+      },
+    });
   };
 
   const handleExportCSV = () => {
@@ -553,35 +548,6 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
           {waError && <p className="text-sm text-red-600 mt-2">{waError}</p>}
         </div>
 
-        <div className="mb-6 rounded-3xl border-4 border-amber-500 bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 p-5 shadow-[0_12px_30px_rgba(245,158,11,0.22)]">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-2xl font-black text-white shadow-lg">
-                !
-              </div>
-              <div>
-                <h2 className="text-2xl font-extrabold text-amber-950">Confirmações de Ação</h2>
-                <p className="text-sm font-medium text-amber-900">
-                  Botão temporário para deletar ou desativar sem aparecer confirmação por até 5 minutos.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 sm:items-end">
-              <button
-                onClick={toggleSkipActionConfirm}
-                className={`rounded-2xl px-6 py-4 text-base font-black shadow-lg transition-transform hover:scale-[1.02] ${skipActionConfirmEnabled ? 'bg-green-600 text-white' : 'bg-amber-600 text-white'}`}
-              >
-                {skipActionConfirmEnabled ? 'Desativar modo sem confirmação' : 'Ativar por 5 minutos'}
-              </button>
-              {skipActionConfirmEnabled && skipActionConfirmUntil && (
-                <span className="text-sm font-semibold text-green-800">
-                  Ativo até {new Date(Number(skipActionConfirmUntil)).toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
         <div className="bg-card rounded-xl shadow-sm border border-border p-6">
           <h2 className="text-lg font-semibold mb-3">Backup</h2>
           <p className="text-sm text-gray-500 mb-4">
@@ -754,9 +720,17 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
                     });
                   }
                   if (newClients.length === 0) { setCsvMessage('Nenhum cliente válido encontrado no CSV.'); return; }
-                  if (!skipActionConfirmEnabled && !window.confirm(`Importar ${newClients.length} clientes? (Existentes: ${clients.length})`)) return;
-                  void saveAllClientsToFirestore(uid, [...clients, ...newClients]).then(() => {
-                    setCsvMessage(`✓ ${newClients.length} clientes importados com sucesso!`);
+                  setConfirmDialog({
+                    title: 'Client Manager',
+                    message: `Importar ${newClients.length} clientes? (Existentes: ${clients.length})`,
+                    confirmText: 'Importar',
+                    cancelText: 'Cancelar',
+                    destructive: false,
+                    onConfirm: () => {
+                      void saveAllClientsToFirestore(uid, [...clients, ...newClients]).then(() => {
+                        setCsvMessage(`✓ ${newClients.length} clientes importados com sucesso!`);
+                      });
+                    },
                   });
                 };
                 reader.readAsText(file);
@@ -822,6 +796,14 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
           {saved ? '✓ Salvo com sucesso!' : 'Salvar Configurações'}
         </button>
       </div>
+
+      {confirmDialog && (
+        <ConfirmDialog
+          dialog={confirmDialog}
+          onCancel={() => setConfirmDialog(null)}
+          onConfirm={() => void handleConfirmDialog()}
+        />
+      )}
     </div>
   );
 }

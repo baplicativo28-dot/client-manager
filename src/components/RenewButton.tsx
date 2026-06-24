@@ -5,14 +5,13 @@ interface Props {
   clientName: string;
 }
 
-export function RenewButton({ onRenew, clientName }: Props) {
+export function RenewButton({ onRenew }: Props) {
   const [showCustom, setShowCustom] = useState(false);
   const [customMonths, setCustomMonths] = useState('');
 
   const handleCustomRenew = () => {
     const months = parseInt(customMonths, 10);
     if (months > 0) {
-      if (!window.confirm(`Renovar "${clientName}" por ${months} meses?`)) return;
       onRenew(months);
       setShowCustom(false);
       setCustomMonths('');
@@ -22,10 +21,7 @@ export function RenewButton({ onRenew, clientName }: Props) {
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={() => {
-          if (!window.confirm(`Renovar "${clientName}" por 1 mês?`)) return;
-          onRenew(1);
-        }}
+        onClick={() => onRenew(1)}
         className="text-xs bg-success text-white px-3 py-1.5 rounded font-medium hover:opacity-90 transition-opacity"
         title="Renovar 1 mes"
       >
@@ -47,6 +43,7 @@ export function RenewButton({ onRenew, clientName }: Props) {
             min="2"
             value={customMonths}
             onChange={(e) => setCustomMonths(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCustomRenew(); }}
             placeholder="Meses"
             className="w-16 text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
             autoFocus

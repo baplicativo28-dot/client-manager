@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useResellers } from '../hooks/useResellers';
+import { ConfirmDialog, type ConfirmDialogState } from '../components/ConfirmDialog';
 
 interface ResellersPageProps {
   adminUid: string;
@@ -20,6 +21,7 @@ export function ResellersPage({ adminUid, onLogout }: ResellersPageProps) {
   // Delete state
   const [confirmDeleteReseller, setConfirmDeleteReseller] = useState<{ uid: string; email: string } | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
   // Reset password state
   const [resettingUid, setResettingUid] = useState<string | null>(null);
@@ -55,13 +57,22 @@ export function ResellersPage({ adminUid, onLogout }: ResellersPageProps) {
 
   const handleToggleBlock = async (uid: string, currentBlocked: boolean) => {
     const action = currentBlocked ? 'desbloquear' : 'bloquear';
-    if (!window.confirm(`Deseja ${action} este revendedor?`)) return;
-    setTogglingUid(uid);
-    try {
-      await toggleBlock(uid, !currentBlocked);
-    } finally {
-      setTogglingUid(null);
-    }
+    const reseller = resellers.find((r) => r.uid === uid);
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Deseja ${action} o revendedor "${reseller?.email || uid}"?`,
+      confirmText: action.charAt(0).toUpperCase() + action.slice(1),
+      cancelText: 'Cancelar',
+      destructive: !currentBlocked,
+      onConfirm: async () => {
+        setTogglingUid(uid);
+        try {
+          await toggleBlock(uid, !currentBlocked);
+        } finally {
+          setTogglingUid(null);
+        }
+      },
+    });
   };
 
   const handleDeleteConfirm = async () => {
@@ -389,6 +400,17 @@ export function ResellersPage({ adminUid, onLogout }: ResellersPageProps) {
             </div>
           </div>
         </div>
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          dialog={confirmDialog}
+          onCancel={() => setConfirmDialog(null)}
+          onConfirm={() => {
+            const action = confirmDialog.onConfirm;
+            setConfirmDialog(null);
+            void action();
+          }}
+        />
       )}
     </div>
   );

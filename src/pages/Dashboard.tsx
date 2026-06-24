@@ -17,9 +17,10 @@ import { ClientModal } from '../components/ClientModal';
 import { RenewButton } from '../components/RenewButton';
 import { FinancialSummary } from '../components/FinancialSummary';
 import { FilterTabs } from '../components/FilterTabs';
-import { getExpiredClientsFromFirestore, deleteClientsFromFirestore } from '../utils/firestoreUtils';
 import { TrustRenewalModal } from '../components/TrustRenewalModal';
 import { MigrationModal } from '../components/MigrationModal';
+import { ConfirmDialog, type ConfirmDialogState } from '../components/ConfirmDialog';
+import { getExpiredClientsFromFirestore, deleteClientsFromFirestore } from '../utils/firestoreUtils';
 
 interface DashboardProps {
   uid: string;
@@ -35,54 +36,6 @@ type ReminderItem = {
   sent: boolean;
   label: string;
 };
-
-type ConfirmDialogState = {
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  destructive?: boolean;
-  onConfirm: () => void | Promise<void>;
-};
-
-function ConfirmDialog({
-  dialog,
-  onCancel,
-  onConfirm,
-}: {
-  dialog: ConfirmDialogState;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="border-b border-border px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">{dialog.title}</h3>
-        </div>
-        <div className="px-6 py-5">
-          <p className="text-sm text-gray-700">{dialog.message}</p>
-        </div>
-        <div className="flex justify-end gap-3 px-6 pb-6">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50"
-          >
-            {dialog.cancelText || 'Cancelar'}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${dialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-accent hover:bg-accent-hover'}`}
-          >
-            {dialog.confirmText || 'OK'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const { clients, loading: clientsLoading, addClient, updateClient, deleteClient } = useClients(uid);
@@ -113,10 +66,6 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const [autoSendProgress, setAutoSendProgress] = useState('');
   const [autoSendPending, setAutoSendPending] = useState<ReminderItem[]>([]);
   const [showAutoSendListModal, setShowAutoSendListModal] = useState(false);
-  const [skipActionConfirmUntil, setSkipActionConfirmUntil] = useState<string | null>(
-    localStorage.getItem('cm_skip_action_confirm_until')
-  );
-  const skipActionConfirmEnabled = !!skipActionConfirmUntil && Date.now() < Number(skipActionConfirmUntil);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
   useEffect(() => {
@@ -135,14 +84,6 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       }
     }
   }, [clientsLoading, clients.length]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const savedValue = localStorage.getItem('cm_skip_action_confirm_until');
-      setSkipActionConfirmUntil(savedValue);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const clientsWithStatus = useMemo(() => {
     return clients.map((client) => ({
@@ -290,28 +231,31 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const handleRenew = (clientId: string, months: number) => {
     const client = clients.find((item) => item.id === clientId);
     if (!client) return;
-    if (!skipActionConfirmEnabled) {
-      setConfirmDialog({
-        title: 'Client Manager',
-        message: `Tem certeza que deseja renovar "${client.nome}" por ${months} mês(es)?`,
-        confirmText: 'Renovar',
-        cancelText: 'Cancelar',
-        destructive: false,
-        onConfirm: () => renewClientFromBaseDate(client, months, client.dataVencimento),
-      });
-      return;
-    }
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const [year, month, day] = client.dataVencimento.split('-').map(Number);
-    const vencimentoAtual = new Date(year, month - 1, day);
-    const dataBase = vencimentoAtual < hoje ? new Date(hoje) : vencimentoAtual;
-    const baseIso = [
-      dataBase.getFullYear(),
-      String(dataBase.getMonth() + 1).padStart(2, '0'),
-      String(dataBase.getDate()).padStart(2, '0'),
-    ].join('-');
-    renewClientFromBaseDate(client, months, baseIso);
+
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Tem certeza que deseja renovar "${client.nome}" por ${months} mês(es)?`,
+      confirmText: 'Renovar',
+      cancelText: 'Cancelar',
+      destructive: false,
+      onConfirm: () => {
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        const [year, month, day] = client.dataVencimento.split('-').map(Number);
+        const vencimentoAtual = new Date(year, month - 1, day);
+        const dataBase = vencimentoAtual < hoje ? new Date(hoje) : vencimentoAtual;
+        const baseIso = [
+          dataBase.getFullYear(),
+          String(dataBase.getMonth() + 1).padStart(2, '0'),
+          String(dataBase.getDate()).padStart(2, '0'),
+        ].join('-');
+        renewClientFromBaseDate(client, months, baseIso);
+      },
+    });
+  };
+
+  const handleMonthlyRenew = (_client: Client, months: number) => {
+    handleRenew(_client.id, months);
   };
 
   const handleReminder = (client: Client) => {
@@ -380,37 +324,31 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       return;
     }
 
-    if (!skipActionConfirmEnabled) {
-      setConfirmDialog({
-        title: 'Client Manager',
-        message: `Tem certeza que deseja desativar "${client.nome}"?`,
-        confirmText: 'Desativar',
-        cancelText: 'Cancelar',
-        destructive: true,
-        onConfirm: () => updateClient(client.id, { desativado: true, situacao: 'Não Renovou' }),
-      });
-      return;
-    }
-    updateClient(client.id, { desativado: true, situacao: 'Não Renovou' });
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Tem certeza que deseja desativar "${client.nome}"?`,
+      confirmText: 'Desativar',
+      cancelText: 'Cancelar',
+      destructive: true,
+      onConfirm: () => updateClient(client.id, { desativado: true, situacao: 'Não Renovou' }),
+    });
   };
 
   const handleDelete = async (client: Client) => {
-    if (!skipActionConfirmEnabled) {
-      setConfirmDialog({
-        title: 'Client Manager',
-        message: `Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`,
-        confirmText: 'Excluir',
-        cancelText: 'Cancelar',
-        destructive: true,
-        onConfirm: () => deleteClient(client.id),
-      });
-      return;
-    }
-    try {
-      await deleteClient(client.id);
-    } catch {
-      window.alert('Erro ao excluir cliente. Verifique as permissões do Firestore e tente novamente.');
-    }
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteClient(client.id);
+        } catch {
+          window.alert('Erro ao excluir cliente. Verifique as permissões do Firestore e tente novamente.');
+        }
+      },
+    });
   };
 
   const handlePrepareClearExpired = async () => {
@@ -449,34 +387,6 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       setShowClearModal(false);
       setTimeout(() => setClearFeedback(''), 4000);
     }
-  };
-
-  const handleMonthlyRenew = (client: Client, months: number) => {
-    if (skipActionConfirmEnabled) {
-      handleRenew(client.id, months);
-      return;
-    }
-
-    setConfirmDialog({
-      title: 'Client Manager',
-      message: `Tem certeza que deseja renovar "${client.nome}" por ${months} mês(es)?`,
-      confirmText: 'Renovar',
-      cancelText: 'Cancelar',
-      destructive: false,
-      onConfirm: () => {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
-        const [year, month, day] = client.dataVencimento.split('-').map(Number);
-        const vencimentoAtual = new Date(year, month - 1, day);
-        const dataBase = vencimentoAtual < hoje ? new Date(hoje) : vencimentoAtual;
-        const baseIso = [
-          dataBase.getFullYear(),
-          String(dataBase.getMonth() + 1).padStart(2, '0'),
-          String(dataBase.getDate()).padStart(2, '0'),
-        ].join('-');
-        renewClientFromBaseDate(client, months, baseIso);
-      },
-    });
   };
 
   const handleConfirmPayment = (client: Client) => {
