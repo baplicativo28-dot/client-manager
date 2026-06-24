@@ -12,6 +12,54 @@ import {
   getPreviousMonthKey,
 } from '../utils/helpers';
 
+type ConfirmDialogState = {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  destructive?: boolean;
+  onConfirm: () => void | Promise<void>;
+};
+
+function ConfirmDialog({
+  dialog,
+  onCancel,
+  onConfirm,
+}: {
+  dialog: ConfirmDialogState;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="border-b border-border px-6 py-4">
+          <h3 className="text-lg font-semibold text-gray-900">{dialog.title}</h3>
+        </div>
+        <div className="px-6 py-5">
+          <p className="text-sm text-gray-700">{dialog.message}</p>
+        </div>
+        <div className="flex justify-end gap-3 px-6 pb-6">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            {dialog.cancelText || 'Cancelar'}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${dialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-accent hover:bg-accent-hover'}`}
+          >
+            {dialog.confirmText || 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface FinancePageProps {
   uid: string;
   onLogout: () => void;
@@ -51,6 +99,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [entryForm, setEntryForm] = useState({
     productId: '',
     tipo: 'venda' as FinanceEntryType,
@@ -235,15 +284,60 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleDeleteProduct = (productId: string) => {
     const product = safeProducts.find((item) => item.id === productId);
     const name = product?.nome || 'este produto';
-    if (!window.confirm(`Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
-    deleteProduct(productId);
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      destructive: true,
+      onConfirm: () => deleteProduct(productId),
+    });
   };
 
   const handleDeleteEntry = (entryId: string) => {
     const entry = safeEntries.find((item) => item.id === entryId);
     const name = entry?.descricao || 'este lançamento';
-    if (!window.confirm(`Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
-    deleteEntry(entryId);
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      destructive: true,
+      onConfirm: () => deleteEntry(entryId),
+    });
+  };
+
+  const handleEditEntryClick = (entryId: string) => {
+    const entry = safeEntries.find((item) => item.id === entryId);
+    if (!entry) return;
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Deseja editar o lançamento "${entry.descricao}"?`,
+      confirmText: 'Editar',
+      cancelText: 'Cancelar',
+      destructive: false,
+      onConfirm: () => handleEditEntry(entryId),
+    });
+  };
+
+  const handleEditProductClick = (productId: string) => {
+    const product = safeProducts.find((item) => item.id === productId);
+    if (!product) return;
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Deseja editar o produto recorrente "${product.nome}"?`,
+      confirmText: 'Editar',
+      cancelText: 'Cancelar',
+      destructive: false,
+      onConfirm: () => handleEditProduct(productId),
+    });
+  };
+
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog) return;
+    const action = confirmDialog.onConfirm;
+    setConfirmDialog(null);
+    await action();
   };
 
   const handleExportPDF = () => {
@@ -473,7 +567,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => handleEditProduct(product.id)}
+                    onClick={() => handleEditProductClick(product.id)}
                     className="text-xs text-blue-600 font-medium hover:underline"
                   >
                     Editar
@@ -663,7 +757,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                   <div className="mt-2 flex items-center gap-3 md:justify-end">
                     <button
                       type="button"
-                      onClick={() => handleEditEntry(entry.id)}
+                      onClick={() => handleEditEntryClick(entry.id)}
                       className="text-xs text-accent font-medium hover:underline"
                     >
                       Editar
@@ -682,6 +776,14 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
           })}
         </div>
       </div>
+
+      {confirmDialog && (
+        <ConfirmDialog
+          dialog={confirmDialog}
+          onCancel={() => setConfirmDialog(null)}
+          onConfirm={() => void handleConfirmDialog()}
+        />
+      )}
     </div>
   );
 }

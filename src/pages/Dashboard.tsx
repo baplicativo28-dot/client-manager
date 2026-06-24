@@ -290,6 +290,17 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const handleRenew = (clientId: string, months: number) => {
     const client = clients.find((item) => item.id === clientId);
     if (!client) return;
+    if (!skipActionConfirmEnabled) {
+      setConfirmDialog({
+        title: 'Client Manager',
+        message: `Tem certeza que deseja renovar "${client.nome}" por ${months} mês(es)?`,
+        confirmText: 'Renovar',
+        cancelText: 'Cancelar',
+        destructive: false,
+        onConfirm: () => renewClientFromBaseDate(client, months, client.dataVencimento),
+      });
+      return;
+    }
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const [year, month, day] = client.dataVencimento.split('-').map(Number);
@@ -344,33 +355,6 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
     setTrustClient(null);
   };
 
-  const handleConfirmPayment = (client: Client) => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const originalDueDate = client.trustOriginalDueDate ?? client.dataVencimento;
-    const [y, m, d] = originalDueDate.split('-').map(Number);
-    const originalDate = new Date(y, m - 1, d);
-    const hadExpired = originalDate < hoje;
-
-    const baseDate = hadExpired
-      ? (client.trustActivationDate ?? client.trustPaymentDate ?? new Date().toISOString().split('T')[0])
-      : originalDueDate;
-    const months = client.mesesRenovados && client.mesesRenovados > 0 ? client.mesesRenovados : 1;
-    const situacao = client.situacao === 'Assinou' ? 'Renovou' : client.situacao;
-    const newDate = adicionarMeses(baseDate, months);
-    updateClient(client.id, {
-      dataVencimento: newDate,
-      situacao,
-      lembreteEnviado: false,
-      ultimaRenovacao: new Date().toISOString().split('T')[0],
-      mesesRenovados: months,
-      trustRenewal: false,
-      trustPaymentDate: null,
-      trustActivationDate: null,
-      trustOriginalDueDate: null,
-      desativado: false,
-    });
-  };
 
   const handleMarkDefaulter = (client: Client) => {
     updateClient(client.id, {
@@ -465,6 +449,46 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       setShowClearModal(false);
       setTimeout(() => setClearFeedback(''), 4000);
     }
+  };
+
+  const handleMonthlyRenew = (client: Client, months: number) => {
+    if (skipActionConfirmEnabled) {
+      handleRenew(client.id, months);
+      return;
+    }
+
+    setConfirmDialog({
+      title: 'Client Manager',
+      message: `Tem certeza que deseja renovar "${client.nome}" por ${months} mês(es)?`,
+      confirmText: 'Renovar',
+      cancelText: 'Cancelar',
+      destructive: false,
+      onConfirm: () => {
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        const [year, month, day] = client.dataVencimento.split('-').map(Number);
+        const vencimentoAtual = new Date(year, month - 1, day);
+        const dataBase = vencimentoAtual < hoje ? new Date(hoje) : vencimentoAtual;
+        const baseIso = [
+          dataBase.getFullYear(),
+          String(dataBase.getMonth() + 1).padStart(2, '0'),
+          String(dataBase.getDate()).padStart(2, '0'),
+        ].join('-');
+        renewClientFromBaseDate(client, months, baseIso);
+      },
+    });
+  };
+
+  const handleConfirmPayment = (client: Client) => {
+    const baseDate = client.trustActivationDate || client.dataVencimento;
+    renewClientFromBaseDate(client, 1, baseDate);
+  };
+
+  const handleDialogConfirm = async () => {
+    if (!confirmDialog) return;
+    const action = confirmDialog.onConfirm;
+    setConfirmDialog(null);
+    await action();
   };
 
   const openEdit = (client: Client) => {
@@ -985,7 +1009,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
                 <td className="px-4 py-3">{statusBadge(client.statusCalculado, client)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2 flex-wrap">
-                    <RenewButton onRenew={(months) => handleRenew(client.id, months)} clientName={client.nome} />
+                    <RenewButton onRenew={(months) => handleMonthlyRenew(client, months)} clientName={client.nome} />
                     <button onClick={() => setTrustClient(client)} className="text-xs bg-warning text-white px-2 py-1 rounded font-medium hover:opacity-90">
                       Confiança
                     </button>
@@ -997,7 +1021,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
                     </button>
                     {client.trustRenewal && (
                       <>
-                        <button onClick={() => handleConfirmPayment(client)} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium hover:bg-green-200">
+                      <button onClick={() => handleConfirmPayment(client)} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium hover:bg-green-200">
                           Confirmar Pagamento
                         </button>
                         <button onClick={() => handleMarkDefaulter(client)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium hover:bg-red-200">
@@ -1064,7 +1088,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
               <div><span className="text-gray-500">Situação:</span> {client.situacao}</div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <RenewButton onRenew={(months) => handleRenew(client.id, months)} clientName={client.nome} />
+                  <RenewButton onRenew={(months) => handleMonthlyRenew(client, months)} clientName={client.nome} />
               <button onClick={() => setTrustClient(client)} className="text-xs bg-warning text-white px-2 py-1 rounded font-medium">
                 Confiança
               </button>
@@ -1218,11 +1242,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
         <ConfirmDialog
           dialog={confirmDialog}
           onCancel={() => setConfirmDialog(null)}
-          onConfirm={() => {
-            const action = confirmDialog.onConfirm;
-            setConfirmDialog(null);
-            void action();
-          }}
+          onConfirm={() => void handleDialogConfirm()}
         />
       )}
     </div>
