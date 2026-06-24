@@ -36,6 +36,54 @@ type ReminderItem = {
   label: string;
 };
 
+type ConfirmDialogState = {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  destructive?: boolean;
+  onConfirm: () => void | Promise<void>;
+};
+
+function ConfirmDialog({
+  dialog,
+  onCancel,
+  onConfirm,
+}: {
+  dialog: ConfirmDialogState;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="border-b border-border px-6 py-4">
+          <h3 className="text-lg font-semibold text-gray-900">{dialog.title}</h3>
+        </div>
+        <div className="px-6 py-5">
+          <p className="text-sm text-gray-700">{dialog.message}</p>
+        </div>
+        <div className="flex justify-end gap-3 px-6 pb-6">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            {dialog.cancelText || 'Cancelar'}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${dialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-accent hover:bg-accent-hover'}`}
+          >
+            {dialog.confirmText || 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const { clients, loading: clientsLoading, addClient, updateClient, deleteClient } = useClients(uid);
   const { entries: financeEntries } = useFinance(uid);
@@ -69,6 +117,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
     localStorage.getItem('cm_skip_action_confirm_until')
   );
   const skipActionConfirmEnabled = !!skipActionConfirmUntil && Date.now() < Number(skipActionConfirmUntil);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
   useEffect(() => {
     if (clientsLoading) return;
@@ -347,12 +396,32 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       return;
     }
 
-    if (!skipActionConfirmEnabled && !window.confirm(`Tem certeza que deseja desativar "${client.nome}"?`)) return;
+    if (!skipActionConfirmEnabled) {
+      setConfirmDialog({
+        title: 'Client Manager',
+        message: `Tem certeza que deseja desativar "${client.nome}"?`,
+        confirmText: 'Desativar',
+        cancelText: 'Cancelar',
+        destructive: true,
+        onConfirm: () => updateClient(client.id, { desativado: true, situacao: 'Não Renovou' }),
+      });
+      return;
+    }
     updateClient(client.id, { desativado: true, situacao: 'Não Renovou' });
   };
 
   const handleDelete = async (client: Client) => {
-    if (!skipActionConfirmEnabled && !window.confirm(`Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!skipActionConfirmEnabled) {
+      setConfirmDialog({
+        title: 'Client Manager',
+        message: `Tem certeza que deseja excluir "${client.nome}"? Esta ação não pode ser desfeita.`,
+        confirmText: 'Excluir',
+        cancelText: 'Cancelar',
+        destructive: true,
+        onConfirm: () => deleteClient(client.id),
+      });
+      return;
+    }
     try {
       await deleteClient(client.id);
     } catch {
@@ -1145,6 +1214,17 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       )}
 
       {showMigration && <MigrationModal uid={uid} onDone={() => setShowMigration(false)} />}
+      {confirmDialog && (
+        <ConfirmDialog
+          dialog={confirmDialog}
+          onCancel={() => setConfirmDialog(null)}
+          onConfirm={() => {
+            const action = confirmDialog.onConfirm;
+            setConfirmDialog(null);
+            void action();
+          }}
+        />
+      )}
     </div>
   );
 }
