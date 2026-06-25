@@ -260,39 +260,6 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     });
   };
 
-  const handleEditEntryClick = (entryId: string) => {
-    const entry = safeEntries.find((item) => item.id === entryId);
-    if (!entry) return;
-    setConfirmDialog({
-      title: 'Client Manager',
-      message: `Deseja editar o lançamento "${entry.descricao}"?`,
-      confirmText: 'Editar',
-      cancelText: 'Cancelar',
-      destructive: false,
-      onConfirm: () => handleEditEntry(entryId),
-    });
-  };
-
-  const handleEditProductClick = (productId: string) => {
-    const product = safeProducts.find((item) => item.id === productId);
-    if (!product) return;
-    setConfirmDialog({
-      title: 'Client Manager',
-      message: `Deseja editar o produto recorrente "${product.nome}"?`,
-      confirmText: 'Editar',
-      cancelText: 'Cancelar',
-      destructive: false,
-      onConfirm: () => handleEditProduct(productId),
-    });
-  };
-
-  const handleConfirmDialog = async () => {
-    if (!confirmDialog) return;
-    const action = confirmDialog.onConfirm;
-    setConfirmDialog(null);
-    await action();
-  };
-
   const handleExportPDF = () => {
     const selectedTotals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
     const selectedProfit = selectedTotals.receita - selectedTotals.despesa;
@@ -350,6 +317,13 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       observacao: entry.observacao || '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog) return;
+    const action = confirmDialog.onConfirm;
+    setConfirmDialog(null);
+    await action();
   };
 
   try {
@@ -520,7 +494,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => handleEditProductClick(product.id)}
+                    onClick={() => handleEditProduct(product.id)}
                     className="text-xs text-blue-600 font-medium hover:underline"
                   >
                     Editar
@@ -710,7 +684,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                   <div className="mt-2 flex items-center gap-3 md:justify-end">
                     <button
                       type="button"
-                      onClick={() => handleEditEntryClick(entry.id)}
+                      onClick={() => handleEditEntry(entry.id)}
                       className="text-xs text-accent font-medium hover:underline"
                     >
                       Editar
