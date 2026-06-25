@@ -53,6 +53,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [showEntryModal, setShowEntryModal] = useState(false);
   const [entryForm, setEntryForm] = useState({
     productId: '',
     tipo: 'venda' as FinanceEntryType,
@@ -131,6 +132,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
   const resetEntryForm = () => {
     setEditingEntryId(null);
+    setShowEntryModal(false);
     setEntryForm({
       productId: '',
       tipo: 'venda',
@@ -305,6 +307,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     const entry = safeEntries.find((item) => item.id === entryId);
     if (!entry) return;
     setEditingEntryId(entry.id);
+    setShowEntryModal(true);
     setEntryForm({
       productId: entry.productId || '',
       tipo: entry.tipo,
@@ -317,10 +320,6 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       observacao: entry.observacao || '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleEditEntryClick = (entryId: string) => {
-    handleEditEntry(entryId);
   };
 
   const handleConfirmDialog = async () => {
@@ -545,16 +544,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold">{editingEntryId ? 'Editar lançamento' : 'Lançar venda ou despesa'}</h2>
-            {editingEntryId && (
-              <button
-                type="button"
-                onClick={resetEntryForm}
-                className="text-sm font-medium text-gray-500 hover:text-gray-800"
-              >
-                Cancelar edição
-              </button>
-            )}
+            <h2 className="text-lg font-semibold">Lançar venda ou despesa</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
@@ -639,10 +629,119 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             onClick={handleSaveEntry}
             className="mt-4 bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
           >
-            {editingEntryId ? 'Salvar alteração' : 'Salvar lançamento'}
+            Salvar lançamento
           </button>
         </div>
       </div>
+
+      {showEntryModal && editingEntryId && (
+        <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-xl shadow-lg w-full max-w-2xl border border-border">
+            <div className="p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-xl font-semibold">Editar lançamento</h3>
+                <button type="button" onClick={resetEntryForm} className="text-sm font-medium text-gray-500 hover:text-gray-800">
+                  Cancelar edição
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select
+                  value={entryForm.productId}
+                  onChange={(e) => applyProductToForm(e.target.value)}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
+                >
+                  <option value="">Selecionar produto cadastrado (opcional)</option>
+                  {sortedProducts.map((product) => (
+                    <option key={product.id} value={product.id}>{product.nome}</option>
+                  ))}
+                </select>
+                <select
+                  value={entryForm.tipo}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, tipo: e.target.value as FinanceEntryType }))}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  {Object.entries(entryTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <select
+                  value={entryForm.categoria}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  {Object.entries(categoryLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={entryForm.descricao}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, descricao: e.target.value }))}
+                  placeholder="Descrição"
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={entryForm.custo}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, custo: e.target.value }))}
+                  placeholder="Quanto pagou"
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={entryForm.valorVenda}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, valorVenda: e.target.value }))}
+                  placeholder="Quanto vendeu"
+                  disabled={entryForm.tipo !== 'venda'}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={entryForm.quantidade}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, quantidade: e.target.value }))}
+                  placeholder="Quantidade"
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <input
+                  type="date"
+                  value={entryForm.data}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, data: e.target.value }))}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <textarea
+                  value={entryForm.observacao}
+                  onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
+                  placeholder="Observação (opcional)"
+                  rows={3}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
+                />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={handleSaveEntry}
+                  className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
+                >
+                  Salvar alteração
+                </button>
+                <button
+                  type="button"
+                  onClick={resetEntryForm}
+                  className="border border-border rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
         <div className="p-5 border-b border-border">
@@ -688,7 +787,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                   <div className="mt-2 flex items-center gap-3 md:justify-end">
                     <button
                       type="button"
-                      onClick={() => handleEditEntryClick(entry.id)}
+                      onClick={() => handleEditEntry(entry.id)}
                       className="text-xs text-accent font-medium hover:underline"
                     >
                       Editar
