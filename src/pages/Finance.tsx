@@ -319,6 +319,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleEditEntryClick = (entryId: string) => {
+    handleEditEntry(entryId);
+  };
+
   const handleConfirmDialog = async () => {
     if (!confirmDialog) return;
     const action = confirmDialog.onConfirm;
@@ -684,7 +688,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                   <div className="mt-2 flex items-center gap-3 md:justify-end">
                     <button
                       type="button"
-                      onClick={() => handleEditEntry(entry.id)}
+                      onClick={() => handleEditEntryClick(entry.id)}
                       className="text-xs text-accent font-medium hover:underline"
                     >
                       Editar
