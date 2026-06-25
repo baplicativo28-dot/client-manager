@@ -142,7 +142,11 @@ export function buildFinancialTotalsByMonth(
   const totals: Record<string, { receita: number; despesa: number }> = {};
   const currentMonthKey = getMonthKeyFromIsoDate(new Date().toISOString().split('T')[0]);
   const activeClients = safeClients.filter((client) => !client.desativado);
-  const createdClients = activeClients.filter((client) => client.situacao === 'Assinou' && !client.ultimaRenovacao);
+  const createdClients = activeClients.filter((client) => {
+    if (client.situacao !== 'Assinou' || client.ultimaRenovacao) return false;
+    if (client.trustRenewal) return false;
+    return calcularStatus(client.dataVencimento) !== 'Expirado';
+  });
   const serverCostMap: Record<string, number> = {};
 
   (safeSettings.servidores || []).forEach((server) => {
