@@ -22,7 +22,6 @@ export function useClients(uid: string) {
   const addClient = useCallback(
     async (client: Omit<Client, 'id' | 'desativado' | 'lembreteEnviado' | 'situacao'>) => {
       const id = generateId();
-      const today = new Date().toISOString().split('T')[0];
       const newClient: Client = {
         ...client,
         situacao: 'Assinou',
@@ -30,7 +29,7 @@ export function useClients(uid: string) {
         desativado: false,
         lembreteEnviado: false,
         criadoEm: client.criadoEm || new Date().toISOString(),
-        ultimaRenovacao: today,
+        ultimaRenovacao: null,
         mesesRenovados: 1,
         trustRenewal: false,
         trustPaymentDate: null,
