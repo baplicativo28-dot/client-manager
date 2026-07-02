@@ -40,6 +40,7 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
 
   const [whatsappServerUrl, setWhatsappServerUrl] = useState(settings.whatsappServerUrl ?? '');
   const [whatsappServerKey, setWhatsappServerKey] = useState(settings.whatsappServerKey ?? '');
+  const [ignoreRenewalServerCost, setIgnoreRenewalServerCost] = useState(false);
   const [waStatus, setWaStatus] = useState<'disconnected' | 'connecting' | 'qr' | 'connected'>('disconnected');
   const [waQR, setWaQR] = useState<string | null>(null);
   const [waLoading, setWaLoading] = useState(false);
@@ -59,10 +60,11 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
       setServidores(settings.servidores);
       setWhatsappServerUrl(settings.whatsappServerUrl ?? '');
       setWhatsappServerKey(settings.whatsappServerKey ?? '');
+      setIgnoreRenewalServerCost(Boolean(settings.ignoreRenewalServerCost));
       setInitialized(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, uid]);
 
   const handleSave = async () => {
     // Cascade server name changes to clients
@@ -85,7 +87,8 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
       await saveAllClientsToFirestore(uid, updatedClients);
     }
 
-    updateSettings({
+    try {
+      await updateSettings({
       whatsappTemplate: template,
       whatsappTemplateConfianca: templateConfianca,
       whatsappTemplateExpirado: templateExpirado,
@@ -97,9 +100,13 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
       variaveisPersonalizadas: settings.variaveisPersonalizadas,
       whatsappServerUrl,
       whatsappServerKey,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+      ignoreRenewalServerCost,
+      });
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaved(false);
+    }
   };
 
   const handleConfirmDialog = async () => {
@@ -136,6 +143,8 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
         defaultBanco: banco,
         defaultBeneficiario: beneficiario,
         servidores,
+        whatsappServerUrl,
+        whatsappServerKey,
       },
     });
   };
@@ -474,6 +483,24 @@ export function SettingsPage({ uid, onLogout }: SettingsPageProps) {
               Adicionar
             </button>
           </div>
+        </div>
+
+        <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+          <h2 className="text-lg font-semibold mb-3">Renovação</h2>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={ignoreRenewalServerCost}
+              onChange={(e) => setIgnoreRenewalServerCost(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-border text-accent focus:ring-accent"
+            />
+            <span className="text-sm text-gray-700">
+              Ignorar custo dos servidores na renovação dos clientes
+            </span>
+          </label>
+          <p className="mt-2 text-xs text-gray-500">
+            Quando ativado, a renovação considera custo zero. Quando desativado, volta a usar o custo de cada servidor.
+          </p>
         </div>
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-6">

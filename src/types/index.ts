@@ -50,6 +50,7 @@ export interface Settings {
   variaveisPersonalizadas: Record<string, string>;
   whatsappServerUrl?: string;
   whatsappServerKey?: string;
+  ignoreRenewalServerCost?: boolean;
 }
 
 export type FinanceEntryType = 'venda' | 'despesa';

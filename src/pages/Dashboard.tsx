@@ -38,9 +38,10 @@ type ReminderItem = {
 };
 
 export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
-  const { clients, loading: clientsLoading, addClient, updateClient, deleteClient } = useClients(uid);
+  const { clients, loading: clientsLoading, addClient, updateClient, deleteClient, online, pendingCount, syncing, syncNow } = useClients(uid);
   const { entries: financeEntries } = useFinance(uid);
   const { settings } = useSettings(uid);
+  const getLocalIsoDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('Todos');
@@ -122,7 +123,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
     .reduce((total, [, count]) => total + count, 0);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     clientsWithStatus.forEach((client) => {
       if (
         client.statusCalculado === 'Expirado'
@@ -214,11 +215,12 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
 
   const renewClientFromBaseDate = (client: Client, months: number, baseDate: string) => {
     const newDate = adicionarMeses(baseDate, months);
+    const localTodayIso = getLocalIsoDate();
     updateClient(client.id, {
       dataVencimento: newDate,
       situacao: 'Renovou',
       lembreteEnviado: false,
-      ultimaRenovacao: new Date().toISOString().split('T')[0],
+      ultimaRenovacao: localTodayIso,
       mesesRenovados: months,
       trustRenewal: false,
       trustPaymentDate: null,
@@ -239,8 +241,8 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       cancelText: 'Cancelar',
       destructive: false,
       onConfirm: () => {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
+        const todayIso = getLocalIsoDate();
+        const hoje = new Date(`${todayIso}T00:00:00`);
         const [year, month, day] = client.dataVencimento.split('-').map(Number);
         const vencimentoAtual = new Date(year, month - 1, day);
         const dataBase = vencimentoAtual < hoje ? new Date(hoje) : vencimentoAtual;
@@ -282,7 +284,7 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
     window.open(url, '_blank');
     updateClient(client.id, {
       lembreteEnviado: true,
-      lastReminderResetDate: new Date().toISOString().split('T')[0],
+      lastReminderResetDate: getLocalIsoDate(),
     });
   };
 
@@ -352,8 +354,8 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   };
 
   const handlePrepareClearExpired = async () => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const todayIso = getLocalIsoDate();
+    const hoje = new Date(`${todayIso}T00:00:00`);
     const cutoff = new Date(hoje);
     cutoff.setDate(cutoff.getDate() - clearPeriod);
     const cutoffStr = cutoff.toISOString().split('T')[0];
@@ -370,8 +372,8 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const handleConfirmClearExpired = async () => {
     setClearLoading(true);
     try {
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
+      const todayIso = getLocalIsoDate();
+      const hoje = new Date(`${todayIso}T00:00:00`);
       const cutoff = new Date(hoje);
       cutoff.setDate(cutoff.getDate() - clearPeriod);
       const cutoffStr = cutoff.toISOString().split('T')[0];
@@ -628,12 +630,49 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <span className="bg-accent text-white text-xs font-semibold px-2.5 py-1 rounded-full">{activeCount} ativos</span>
         </div>
-        <button
-          onClick={() => { setEditingClient(null); setModalOpen(true); }}
-          className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
-        >
-          + Novo Cliente
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 text-xs font-medium">
+            <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className={online ? 'text-green-700' : 'text-red-700'}>
+              {online ? 'Online' : 'Offline'}
+            </span>
+            {pendingCount > 0 && (
+              <span className="text-amber-600">
+                {pendingCount} pendente{pendingCount === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+          {pendingCount > 0 && (
+            <button
+              onClick={() => void syncNow()}
+              disabled={syncing || !online}
+              className="bg-accent text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={online ? 'Sincronizar agora' : 'Sem conexão'}
+            >
+              {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
+            </button>
+          )}
+          <button
+            onClick={() => { setEditingClient(null); setModalOpen(true); }}
+            className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
+          >
+            + Novo Cliente
+          </button>
+        </div>
+      </div>
+
+      <div className="sm:hidden flex items-center justify-between mb-4 text-xs">
+        <div className="flex items-center gap-2 font-medium">
+          <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className={online ? 'text-green-700' : 'text-red-700'}>
+            {online ? 'Online' : 'Offline'}
+          </span>
+        </div>
+        {pendingCount > 0 && (
+          <span className="text-amber-600 font-medium">
+            {pendingCount} pendente{pendingCount === 1 ? '' : 's'}
+          </span>
+        )}
       </div>
 
       {sidebarOpen && (

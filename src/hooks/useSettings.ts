@@ -9,26 +9,39 @@ export function useSettings(uid: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!uid) return;
-    const ref = doc(db, 'users', uid, 'settings', 'data');
-    const unsubscribe = onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        setSettings({ ...defaultSettings(), ...(snap.data() as Partial<Settings>) });
-      }
+    if (!uid) {
+      setSettings(defaultSettings());
       setLoading(false);
-    });
+      return;
+    }
+    setLoading(true);
+    const ref = doc(db, 'users', uid, 'settings', 'data');
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        if (snap.exists()) {
+          setSettings({ ...defaultSettings(), ...(snap.data() as Partial<Settings>) });
+        } else {
+          setSettings(defaultSettings());
+        }
+        setLoading(false);
+      },
+      () => {
+        setSettings(defaultSettings());
+        setLoading(false);
+      },
+    );
     return unsubscribe;
   }, [uid]);
 
   const updateSettings = useCallback(
-    (data: Partial<Settings>) => {
-      setSettings((prev) => {
-        const updated = { ...prev, ...data };
-        void setDoc(doc(db, 'users', uid, 'settings', 'data'), updated);
-        return updated;
-      });
+    async (data: Partial<Settings>) => {
+      const updated = { ...settings, ...data };
+      await setDoc(doc(db, 'users', uid, 'settings', 'data'), updated);
+      setSettings(updated);
+      return updated;
     },
-    [uid],
+    [settings, uid],
   );
 
   return { settings, loading, updateSettings };

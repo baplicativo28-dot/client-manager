@@ -49,6 +49,7 @@ export function defaultSettings(): Settings {
     variaveisPersonalizadas: {},
     whatsappServerUrl: '',
     whatsappServerKey: '',
+    ignoreRenewalServerCost: false,
   };
 }
 

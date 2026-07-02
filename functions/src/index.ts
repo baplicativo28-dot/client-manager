@@ -16,7 +16,7 @@ const db = admin.firestore();
 
 let baileysModule: typeof import('@whiskeysockets/baileys') | null = null;
 let activeConnections: Map<string, {
-  sock: import('@whiskeysockets/baileys').WASocket;
+  sock: any;
   qrCode: string | null;
   connected: boolean;
 }> = new Map();
@@ -238,7 +238,7 @@ export const sendWhatsAppMessages = onCall(async (request) => {
  */
 export const autoSendDailyReminders = onSchedule(
   {
-    schedule: '0 9 * * *',
+    schedule: '0 0 * * *',
     timeZone: 'America/Sao_Paulo',
   },
   async () => {

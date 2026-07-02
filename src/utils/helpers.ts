@@ -140,7 +140,7 @@ export function buildFinancialTotalsByMonth(
   const safeSettings = settings || { servidores: [] };
 
   const totals: Record<string, { receita: number; despesa: number }> = {};
-  const currentMonthKey = getMonthKeyFromIsoDate(new Date().toISOString().split('T')[0]);
+  const currentMonthKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
   const activeClients = safeClients.filter((client) => !client.desativado);
   const createdClients = activeClients.filter((client) => {
     if (client.situacao !== 'Assinou' || client.ultimaRenovacao) return false;
@@ -165,14 +165,19 @@ export function buildFinancialTotalsByMonth(
 
   activeClients.forEach((client) => {
     if (!client.ultimaRenovacao) return;
-    const renewalDate = new Date(client.ultimaRenovacao);
+    const renewalParts = client.ultimaRenovacao.split('-').map(Number);
+    if (renewalParts.length !== 3 || renewalParts.some((part) => Number.isNaN(part))) return;
+    const [renewalYear, renewalMonth, renewalDay] = renewalParts;
+    const renewalDate = new Date(renewalYear, renewalMonth - 1, renewalDay);
     if (Number.isNaN(renewalDate.getTime())) return;
     const monthKey = `${renewalDate.getFullYear()}-${String(renewalDate.getMonth() + 1).padStart(2, '0')}`;
     if (!ensureMonth(monthKey)) return;
     const months = typeof client.mesesRenovados === 'number' && !Number.isNaN(client.mesesRenovados) ? client.mesesRenovados : 1;
     const valor = typeof client.valor === 'number' && !Number.isNaN(client.valor) ? client.valor : 0;
     totals[monthKey].receita += valor * months;
-    totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
+    if (!settings?.ignoreRenewalServerCost) {
+      totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
+    }
   });
 
   createdClients.forEach((client) => {

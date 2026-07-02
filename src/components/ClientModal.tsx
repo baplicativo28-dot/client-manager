@@ -11,6 +11,8 @@ interface Props {
 }
 
 export function ClientModal({ isOpen, onClose, onSave, onUpdate, editingClient, servidores }: Props) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'failed'>('idle');
   const [form, setForm] = useState({
     nome: editingClient?.nome ?? '',
     valor: editingClient?.valor?.toString() ?? '',
@@ -36,6 +38,9 @@ export function ClientModal({ isOpen, onClose, onSave, onUpdate, editingClient, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+    setIsSaving(true);
+    setSaveStatus('idle');
     const data: Record<string, unknown> = {
       nome: form.nome,
       valor: parseFloat(form.valor) || 0,
@@ -83,11 +88,26 @@ export function ClientModal({ isOpen, onClose, onSave, onUpdate, editingClient, 
       data.mesesRenovados = editingClient.mesesRenovados ?? 1;
       data.trustActivationDate = editingClient.trustActivationDate;
       if (!hasChanges) data.lembreteEnviado = false;
-      onUpdate(editingClient.id, data);
+      Promise.resolve(onUpdate(editingClient.id, data))
+        .then(() => {
+          setSaveStatus('saved');
+          onClose();
+        })
+        .catch(() => {
+          setSaveStatus('failed');
+        })
+        .finally(() => setIsSaving(false));
     } else {
-      onSave(data as Omit<Client, 'id' | 'desativado' | 'lembreteEnviado' | 'situacao'>);
+      Promise.resolve(onSave(data as Omit<Client, 'id' | 'desativado' | 'lembreteEnviado' | 'situacao'>))
+        .then(() => {
+          setSaveStatus('saved');
+          onClose();
+        })
+        .catch(() => {
+          setSaveStatus('failed');
+        })
+        .finally(() => setIsSaving(false));
     }
-    onClose();
   };
 
   return (
@@ -201,9 +221,10 @@ export function ClientModal({ isOpen, onClose, onSave, onUpdate, editingClient, 
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
+                disabled={isSaving}
                 className="flex-1 bg-accent text-white rounded-lg py-2 font-medium hover:bg-accent-hover transition-colors"
               >
-                {editingClient ? 'Salvar' : 'Adicionar'}
+                {isSaving ? 'Salvando...' : editingClient ? 'Salvar' : 'Adicionar'}
               </button>
               <button
                 type="button"
@@ -216,6 +237,35 @@ export function ClientModal({ isOpen, onClose, onSave, onUpdate, editingClient, 
           </form>
         </div>
       </div>
+      {saveStatus === 'failed' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-card rounded-xl shadow-lg w-full max-w-md border border-border p-6">
+            <h3 className="text-lg font-semibold mb-2">Falha ao sincronizar</h3>
+            <p className="text-sm text-gray-600 mb-5">
+              Não foi possível gravar agora. Deseja tentar sincronizar novamente?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSaveStatus('idle');
+                  onClose();
+                }}
+                className="flex-1 border border-border rounded-lg py-2 font-medium hover:bg-gray-50 transition-colors"
+              >
+                Não, fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaveStatus('idle')}
+                className="flex-1 bg-accent text-white rounded-lg py-2 font-medium hover:bg-accent-hover transition-colors"
+              >
+                Sim, tentar novamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

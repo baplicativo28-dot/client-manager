@@ -11,6 +11,15 @@ import {
 import { db } from '../firebase';
 import type { Client, Settings } from '../types';
 import { defaultSettings, generateId } from './storage';
+import {
+  addPendingAction,
+  getPendingActions,
+  incrementPendingAttempts,
+  isOnline,
+  removePendingAction,
+  type PendingAction,
+  type PendingActionType,
+} from './offlineQueue';
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +63,152 @@ export async function saveAllClientsToFirestore(uid: string, clients: Client[]):
     });
     await batch.commit();
   }
+}
+
+// ─── Offline-aware operations ────────────────────────────────────────────────
+
+function isFirestoreError(error: unknown): boolean {
+  return error instanceof Error &&
+    (error.message.includes('offline') ||
+      error.message.includes('unavailable') ||
+      error.message.includes('network') ||
+      error.message.includes('Failed to fetch') ||
+      error.message.includes('connection'));
+}
+
+export async function updateClientWithOffline(
+  uid: string,
+  id: string,
+  data: Partial<Client>
+): Promise<void> {
+  if (!isOnline()) {
+    addPendingAction(uid, id, 'update', data);
+    return;
+  }
+  try {
+    await updateClientInFirestore(uid, id, data);
+  } catch (error) {
+    if (isFirestoreError(error)) {
+      addPendingAction(uid, id, 'update', data);
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function renewClientWithOffline(
+  uid: string,
+  id: string,
+  data: Partial<Client>
+): Promise<void> {
+  if (!isOnline()) {
+    addPendingAction(uid, id, 'renew', data);
+    return;
+  }
+  try {
+    await updateClientInFirestore(uid, id, data);
+  } catch (error) {
+    if (isFirestoreError(error)) {
+      addPendingAction(uid, id, 'renew', data);
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function addObservationWithOffline(
+  uid: string,
+  id: string,
+  observacao: string
+): Promise<void> {
+  if (!isOnline()) {
+    addPendingAction(uid, id, 'observation', { observacao });
+    return;
+  }
+  try {
+    await updateClientInFirestore(uid, id, { observacao });
+  } catch (error) {
+    if (isFirestoreError(error)) {
+      addPendingAction(uid, id, 'observation', { observacao });
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function deactivateClientWithOffline(
+  uid: string,
+  id: string,
+  data: Partial<Client>
+): Promise<void> {
+  if (!isOnline()) {
+    addPendingAction(uid, id, 'deactivate', data);
+    return;
+  }
+  try {
+    await updateClientInFirestore(uid, id, data);
+  } catch (error) {
+    if (isFirestoreError(error)) {
+      addPendingAction(uid, id, 'deactivate', data);
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function deleteClientWithOffline(uid: string, id: string): Promise<void> {
+  if (!isOnline()) {
+    addPendingAction(uid, id, 'delete', {});
+    return;
+  }
+  try {
+    await deleteClientFromFirestore(uid, id);
+  } catch (error) {
+    if (isFirestoreError(error)) {
+      addPendingAction(uid, id, 'delete', {});
+      return;
+    }
+    throw error;
+  }
+}
+
+// ─── Sync queue ──────────────────────────────────────────────────────────────
+
+const actionHandlers: Record<
+  PendingActionType,
+  (uid: string, clientId: string, payload: PendingAction['payload']) => Promise<void>
+> = {
+  update: (uid, clientId, payload) => updateClientInFirestore(uid, clientId, payload as Partial<Client>),
+  renew: (uid, clientId, payload) => updateClientInFirestore(uid, clientId, payload as Partial<Client>),
+  observation: (uid, clientId, payload) =>
+    updateClientInFirestore(uid, clientId, payload as Partial<Client>),
+  deactivate: (uid, clientId, payload) => updateClientInFirestore(uid, clientId, payload as Partial<Client>),
+  delete: (uid, clientId) => deleteClientFromFirestore(uid, clientId),
+};
+
+export async function syncPendingActions(
+  uid: string,
+  options?: { onProgress?: (action: PendingAction, success: boolean) => void }
+): Promise<{ success: number; failed: number }> {
+  const actions = getPendingActions(uid);
+  let success = 0;
+  let failed = 0;
+
+  for (const action of actions) {
+    try {
+      const handler = actionHandlers[action.type];
+      await handler(action.uid, action.clientId, action.payload);
+      removePendingAction(uid, action.id);
+      success += 1;
+      options?.onProgress?.(action, true);
+    } catch {
+      incrementPendingAttempts(uid, action.id);
+      failed += 1;
+      options?.onProgress?.(action, false);
+    }
+  }
+
+  return { success, failed };
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────

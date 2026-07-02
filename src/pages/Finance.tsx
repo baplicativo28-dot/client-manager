@@ -91,7 +91,6 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     safeEntries.forEach((entry) => keys.add(getMonthKeyFromIsoDate(entry.data)));
     Object.keys(totalsByMonth).forEach((month) => keys.add(month));
     return Array.from(keys)
-      .filter((month) => month >= currentMonth)
       .sort((a, b) => b.localeCompare(a));
   }, [currentMonth, safeEntries, totalsByMonth]);
   const safeMonths = months;
@@ -116,17 +115,19 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     previousTotals
       ? {
           label: getMonthLabel(previousMonthKey),
-          value: previousTotals.receita,
+          receita: previousTotals.receita,
+          despesa: previousTotals.despesa,
           color: 'bg-gray-300',
         }
       : null,
     {
-          label: getMonthLabel(effectiveSelectedMonth),
-      value: totals.receita,
+      label: getMonthLabel(effectiveSelectedMonth),
+      receita: totals.receita,
+      despesa: totals.despesa,
       color: 'bg-accent',
     },
-  ].filter(Boolean) as { label: string; value: number; color: string }[];
-  const maxChartValue = Math.max(...chartItems.map((item) => item.value), 1);
+  ].filter(Boolean) as { label: string; receita: number; despesa: number; color: string }[];
+  const maxChartValue = Math.max(...chartItems.flatMap((item) => [item.receita, item.despesa]), 1);
 
   const profit = totals.receita - totals.despesa;
 
@@ -162,6 +163,17 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       tipo: 'venda',
     }));
   };
+
+  const handleDescriptionChange = (descricao: string) => {
+    setEntryForm((current) => {
+      if (current.productId) {
+        return current;
+      }
+      return { ...current, descricao };
+    });
+  };
+
+  const selectedProductName = safeProducts.find((item) => item.id === entryForm.productId)?.nome || '';
 
   const handleAddProduct = () => {
     if (!productForm.nome.trim()) return;
@@ -265,6 +277,43 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleExportPDF = () => {
     const selectedTotals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
     const selectedProfit = selectedTotals.receita - selectedTotals.despesa;
+    const recurringExpenseSummary = safeEntries
+      .filter((entry) => entry.tipo === 'despesa')
+      .reduce((acc, entry) => {
+        const key = `${entry.tipo}__${entry.categoria}__${String(entry.descricao || '').trim().toLowerCase()}`;
+        if (!acc[key]) {
+          acc[key] = {
+            descricao: entry.descricao,
+            categoria: entry.categoria,
+            tipo: entry.tipo,
+            custoTotal: 0,
+            valorTotal: 0,
+            quantidade: 0,
+          };
+        }
+        acc[key].quantidade += entry.quantidade || 1;
+        acc[key].custoTotal += (entry.custo || 0) * (entry.quantidade || 1);
+        acc[key].valorTotal += (entry.valorVenda || 0) * (entry.quantidade || 1);
+        return acc;
+      }, {} as Record<string, {
+        descricao: string;
+        categoria: FinanceCategory;
+        tipo: FinanceEntryType;
+        custoTotal: number;
+        valorTotal: number;
+        quantidade: number;
+      }>);
+    const recurringExpenseItems = Object.values(recurringExpenseSummary)
+      .filter((item) => item.quantidade >= 1)
+      .sort((a, b) => b.custoTotal - a.custoTotal);
+    const comparisonMonths = [
+      { key: previousMonthKey, label: previousMonthKey ? getMonthLabel(previousMonthKey) : '', totals: previousTotals },
+      { key: effectiveSelectedMonth, label: getMonthLabel(effectiveSelectedMonth), totals },
+    ].filter((item) => item.label && item.totals);
+    const maxComparisonValue = Math.max(
+      ...comparisonMonths.flatMap((item) => [item.totals?.receita || 0, item.totals?.despesa || 0]),
+      1,
+    );
     const html = `
       <html>
         <head>
@@ -277,6 +326,18 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 8px 0; }
             .muted { color: #6b7280; }
             ul { padding-left: 18px; }
+            .chart { margin-top: 20px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+            .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+            .month-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+            .bars { display: flex; gap: 10px; align-items: end; min-height: 160px; margin-top: 12px; }
+            .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+            .bar-stack { width: 100%; display: flex; gap: 8px; align-items: end; justify-content: center; min-height: 140px; }
+            .bar { width: 38%; border-radius: 8px 8px 0 0; min-height: 8px; }
+            .bar-revenue { background: #16a34a; }
+            .bar-expense { background: #dc2626; }
+            .legend { display: flex; gap: 12px; font-size: 12px; color: #6b7280; margin-top: 10px; }
+            .legend span { display: inline-flex; align-items: center; gap: 6px; }
+            .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
           </style>
         </head>
         <body>
@@ -285,9 +346,42 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
           <div class="card"><strong>Receita:</strong> ${formatarValor(selectedTotals.receita)}</div>
           <div class="card"><strong>Despesas:</strong> ${formatarValor(selectedTotals.despesa)}</div>
           <div class="card"><strong>Lucro:</strong> ${formatarValor(selectedProfit)}</div>
-          <h2>Produtos recorrentes</h2>
+          ${comparisonMonths.length ? `
+          <div class="chart">
+            <h2>Comparativo de receita x despesa</h2>
+            <div class="legend">
+              <span><i class="dot" style="background:#16a34a"></i> Receita</span>
+              <span><i class="dot" style="background:#dc2626"></i> Despesa</span>
+            </div>
+            <div class="chart-grid">
+              ${comparisonMonths.map((item) => `
+                <div class="month-card">
+                  <strong>${item.label}</strong>
+                  <div class="bars">
+                    <div class="bar-col">
+                      <div class="bar-stack">
+                        <div class="bar bar-revenue" style="height:${Math.max(((item.totals?.receita || 0) / maxComparisonValue) * 100, item.totals?.receita ? 12 : 6)}%"></div>
+                      </div>
+                      <span class="muted">Receita</span>
+                      <strong>${formatarValor(item.totals?.receita || 0)}</strong>
+                    </div>
+                    <div class="bar-col">
+                      <div class="bar-stack">
+                        <div class="bar bar-expense" style="height:${Math.max(((item.totals?.despesa || 0) / maxComparisonValue) * 100, item.totals?.despesa ? 12 : 6)}%"></div>
+                      </div>
+                      <span class="muted">Despesa</span>
+                      <strong>${formatarValor(item.totals?.despesa || 0)}</strong>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>` : ''}
+          <h2>Despesas recorrentes agrupadas</h2>
           <ul>
-            ${safeProducts.slice(0, 18).map((product) => `<li>${product.nome} — ${categoryLabels[product.categoria]} — Custo ${formatarValor(product.custo)} — Venda ${formatarValor(product.valorVenda)}</li>`).join('')}
+            ${recurringExpenseItems.length
+              ? recurringExpenseItems.map((item) => `<li>${item.descricao} — ${item.quantidade}x — Total ${formatarValor(item.custoTotal)}</li>`).join('')
+              : '<li class="muted">Nenhuma despesa recorrente lançada neste mês.</li>'}
           </ul>
           <h2>Lançamentos do mês</h2>
           ${filteredEntries.slice(0, 40).map((entry) => `<div class="card">${entry.data} | ${entry.descricao} | ${entryTypeLabels[entry.tipo]} | ${formatarValor(entry.valorVenda || entry.custo)}</div>`).join('')}
@@ -295,7 +389,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       </html>
     `;
     const printWindow = window.open('', '_blank', 'width=1200,height=800');
-    if (!printWindow) return;
+    if (!printWindow) {
+      window.alert('O navegador bloqueou a janela do PDF. Permita pop-ups para gerar o relatório.');
+      return;
+    }
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
@@ -430,12 +527,15 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 <div className="w-full max-w-28 h-48 bg-gray-100 rounded-xl flex items-end p-2">
                   <div
                     className={`${item.color} w-full rounded-lg transition-all`}
-                    style={{ height: `${Math.max((item.value / maxChartValue) * 100, item.value > 0 ? 10 : 4)}%` }}
+                    style={{
+                      height: `${Math.max(((item.receita + item.despesa) / maxChartValue) * 100, item.receita + item.despesa > 0 ? 10 : 4)}%`,
+                    }}
                   />
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-500 capitalize">{item.label}</p>
-                  <p className="text-sm font-semibold">{formatarValor(item.value)}</p>
+                  <p className="text-sm font-semibold">{formatarValor(item.receita)}</p>
+                  <p className="text-xs text-gray-500">Despesa {formatarValor(item.despesa)}</p>
                 </div>
               </div>
             ))}
@@ -465,7 +565,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         <div className="bg-card rounded-xl shadow-sm border border-border p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold">Produtos recorrentes</h2>
-            <div className="flex gap-2">
+          <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => { setEditingProductId(null); setShowProductModal(true); setProductForm({ nome: '', categoria: 'licenca', custo: '', valorVenda: '' }); }}
@@ -475,7 +575,9 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
               </button>
               <button
                 type="button"
-                onClick={handleExportPDF}
+              onClick={() => {
+                handleExportPDF();
+              }}
                 className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
               >
                 Gerar PDF
@@ -547,82 +649,117 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             <h2 className="text-lg font-semibold">Lançar venda ou despesa</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <select
-              value={entryForm.productId}
-              onChange={(e) => applyProductToForm(e.target.value)}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
-            >
-              <option value="">Selecionar produto cadastrado (opcional)</option>
-              {sortedProducts.map((product) => (
-                <option key={product.id} value={product.id}>{product.nome}</option>
-              ))}
-            </select>
-            <select
-              value={entryForm.tipo}
-              onChange={(e) => setEntryForm((current) => ({ ...current, tipo: e.target.value as FinanceEntryType }))}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              {Object.entries(entryTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <select
-              value={entryForm.categoria}
-              onChange={(e) => setEntryForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              {Object.entries(categoryLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={entryForm.descricao}
-              onChange={(e) => setEntryForm((current) => ({ ...current, descricao: e.target.value }))}
-              placeholder="Descrição"
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={entryForm.custo}
-              onChange={(e) => setEntryForm((current) => ({ ...current, custo: e.target.value }))}
-              placeholder="Quanto pagou"
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={entryForm.valorVenda}
-              onChange={(e) => setEntryForm((current) => ({ ...current, valorVenda: e.target.value }))}
-              placeholder="Quanto vendeu"
-              disabled={entryForm.tipo !== 'venda'}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100"
-            />
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={entryForm.quantidade}
-              onChange={(e) => setEntryForm((current) => ({ ...current, quantidade: e.target.value }))}
-              placeholder="Quantidade"
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <input
-              type="date"
-              value={entryForm.data}
-              onChange={(e) => setEntryForm((current) => ({ ...current, data: e.target.value }))}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <textarea
-              value={entryForm.observacao}
-              onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
-              placeholder="Observação (opcional)"
-              rows={3}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
-            />
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">Produto cadastrado</label>
+              <select
+                value={entryForm.productId}
+                onChange={(e) => applyProductToForm(e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">Selecionar produto cadastrado (opcional)</option>
+                {sortedProducts.map((product) => (
+                  <option key={product.id} value={product.id}>{product.nome}</option>
+                ))}
+              </select>
+              {selectedProductName ? (
+                <p className="mt-1 text-xs text-gray-500">Descrição preenchida automaticamente com “{selectedProductName}”.</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">Se você não selecionar um produto, pode digitar a descrição manualmente.</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Tipo de lançamento</label>
+              <select
+                value={entryForm.tipo}
+                onChange={(e) => setEntryForm((current) => ({ ...current, tipo: e.target.value as FinanceEntryType }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {Object.entries(entryTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Categoria</label>
+              <select
+                value={entryForm.categoria}
+                onChange={(e) => setEntryForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {Object.entries(categoryLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">
+                {entryForm.productId ? 'Descrição do produto selecionado' : 'Descrição / nome'}
+              </label>
+              <input
+                type="text"
+                value={entryForm.descricao}
+                onChange={(e) => handleDescriptionChange(e.target.value)}
+                disabled={Boolean(entryForm.productId)}
+                placeholder={entryForm.productId ? 'Preenchido automaticamente' : 'Digite o nome ou descrição'}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100 disabled:text-gray-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Quanto pagou / custo</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={entryForm.custo}
+                onChange={(e) => setEntryForm((current) => ({ ...current, custo: e.target.value }))}
+                placeholder="R$ 0,00"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Quanto vendeu</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={entryForm.valorVenda}
+                onChange={(e) => setEntryForm((current) => ({ ...current, valorVenda: e.target.value }))}
+                placeholder="R$ 0,00"
+                disabled={entryForm.tipo !== 'venda'}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Quantidade</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={entryForm.quantidade}
+                onChange={(e) => setEntryForm((current) => ({ ...current, quantidade: e.target.value }))}
+                placeholder="1"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data</label>
+              <input
+                type="date"
+                value={entryForm.data}
+                onChange={(e) => setEntryForm((current) => ({ ...current, data: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">Observação</label>
+              <textarea
+                value={entryForm.observacao}
+                onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
+                placeholder="Opcional"
+                rows={3}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
           </div>
           <button
             type="button"
@@ -645,82 +782,110 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <select
-                  value={entryForm.productId}
-                  onChange={(e) => applyProductToForm(e.target.value)}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
-                >
-                  <option value="">Selecionar produto cadastrado (opcional)</option>
-                  {sortedProducts.map((product) => (
-                    <option key={product.id} value={product.id}>{product.nome}</option>
-                  ))}
-                </select>
-                <select
-                  value={entryForm.tipo}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, tipo: e.target.value as FinanceEntryType }))}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  {Object.entries(entryTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <select
-                  value={entryForm.categoria}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  {Object.entries(categoryLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={entryForm.descricao}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, descricao: e.target.value }))}
-                  placeholder="Descrição"
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={entryForm.custo}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, custo: e.target.value }))}
-                  placeholder="Quanto pagou"
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={entryForm.valorVenda}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, valorVenda: e.target.value }))}
-                  placeholder="Quanto vendeu"
-                  disabled={entryForm.tipo !== 'venda'}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100"
-                />
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={entryForm.quantidade}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, quantidade: e.target.value }))}
-                  placeholder="Quantidade"
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-                <input
-                  type="date"
-                  value={entryForm.data}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, data: e.target.value }))}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-                <textarea
-                  value={entryForm.observacao}
-                  onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
-                  placeholder="Observação (opcional)"
-                  rows={3}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent sm:col-span-2"
-                />
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Produto cadastrado</label>
+                  <select
+                    value={entryForm.productId}
+                    onChange={(e) => applyProductToForm(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="">Selecionar produto cadastrado (opcional)</option>
+                    {sortedProducts.map((product) => (
+                      <option key={product.id} value={product.id}>{product.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tipo de lançamento</label>
+                  <select
+                    value={entryForm.tipo}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, tipo: e.target.value as FinanceEntryType }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    {Object.entries(entryTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Categoria</label>
+                  <select
+                    value={entryForm.categoria}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, categoria: e.target.value as FinanceCategory }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    {Object.entries(categoryLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Descrição / nome</label>
+                  <input
+                    type="text"
+                    value={entryForm.descricao}
+                    onChange={(e) => handleDescriptionChange(e.target.value)}
+                    disabled={Boolean(entryForm.productId)}
+                    placeholder={entryForm.productId ? 'Preenchido automaticamente' : 'Digite o nome ou descrição'}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100 disabled:text-gray-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quanto pagou / custo</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={entryForm.custo}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, custo: e.target.value }))}
+                    placeholder="R$ 0,00"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quanto vendeu</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={entryForm.valorVenda}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, valorVenda: e.target.value }))}
+                    placeholder="R$ 0,00"
+                    disabled={entryForm.tipo !== 'venda'}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantidade</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={entryForm.quantidade}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, quantidade: e.target.value }))}
+                    placeholder="1"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Data</label>
+                  <input
+                    type="date"
+                    value={entryForm.data}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, data: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Observação</label>
+                  <textarea
+                    value={entryForm.observacao}
+                    onChange={(e) => setEntryForm((current) => ({ ...current, observacao: e.target.value }))}
+                    placeholder="Opcional"
+                    rows={3}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button
