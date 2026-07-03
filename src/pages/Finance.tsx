@@ -103,7 +103,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       if (previous && monthHasMovement(previous)) keys.add(previous);
     });
     return Array.from(keys)
-      .filter((month) => monthHasMovement(month) || month === currentMonth)
+      .filter((month) => monthHasMovement(month))
       .sort((a, b) => b.localeCompare(a));
   }, [currentMonth, safeEntries, totalsByMonth]);
   const safeMonths = months;
