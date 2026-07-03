@@ -140,13 +140,7 @@ export function buildFinancialTotalsByMonth(
   const safeSettings = settings || { servidores: [] };
 
   const totals: Record<string, { receita: number; despesa: number }> = {};
-  const currentMonthKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
   const activeClients = safeClients.filter((client) => !client.desativado);
-  const createdClients = activeClients.filter((client) => {
-    if (client.situacao !== 'Assinou' || client.ultimaRenovacao) return false;
-    if (client.trustRenewal) return false;
-    return calcularStatus(client.dataVencimento) !== 'Expirado';
-  });
   const serverCostMap: Record<string, number> = {};
 
   (safeSettings.servidores || []).forEach((server) => {
@@ -156,7 +150,6 @@ export function buildFinancialTotalsByMonth(
   });
 
   const ensureMonth = (monthKey: string) => {
-    if (monthKey < currentMonthKey) return false;
     if (!totals[monthKey]) {
       totals[monthKey] = { receita: 0, despesa: 0 };
     }
@@ -178,16 +171,6 @@ export function buildFinancialTotalsByMonth(
     if (!settings?.ignoreRenewalServerCost) {
       totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
     }
-  });
-
-  createdClients.forEach((client) => {
-    const createdDate = new Date(client.criadoEm);
-    if (Number.isNaN(createdDate.getTime())) return;
-    const monthKey = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`;
-    if (!ensureMonth(monthKey)) return;
-    const valor = typeof client.valor === 'number' && !Number.isNaN(client.valor) ? client.valor : 0;
-    totals[monthKey].receita += valor;
-    totals[monthKey].despesa += serverCostMap[client.servidor] || 0;
   });
 
   safeEntries.forEach((entry) => {

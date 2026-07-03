@@ -90,6 +90,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     const keys = new Set<string>([currentMonth]);
     safeEntries.forEach((entry) => keys.add(getMonthKeyFromIsoDate(entry.data)));
     Object.keys(totalsByMonth).forEach((month) => keys.add(month));
+    Array.from(keys).forEach((month) => {
+      const previous = getPreviousMonthKey(month);
+      if (previous) keys.add(previous);
+    });
     return Array.from(keys)
       .sort((a, b) => b.localeCompare(a));
   }, [currentMonth, safeEntries, totalsByMonth]);
@@ -277,8 +281,9 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleExportPDF = () => {
     const selectedTotals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
     const selectedProfit = selectedTotals.receita - selectedTotals.despesa;
+    const selectedEntries = safeEntries.filter((entry) => getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth);
     const recurringExpenseSummary = safeEntries
-      .filter((entry) => entry.tipo === 'despesa')
+      .filter((entry) => entry.tipo === 'despesa' && getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth)
       .reduce((acc, entry) => {
         const key = `${entry.tipo}__${entry.categoria}__${String(entry.descricao || '').trim().toLowerCase()}`;
         if (!acc[key]) {
@@ -305,13 +310,19 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       }>);
     const recurringExpenseItems = Object.values(recurringExpenseSummary)
       .filter((item) => item.quantidade >= 1)
-      .sort((a, b) => b.custoTotal - a.custoTotal);
+      .sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR', { sensitivity: 'base' }));
     const comparisonMonths = [
-      { key: previousMonthKey, label: previousMonthKey ? getMonthLabel(previousMonthKey) : '', totals: previousTotals },
+      previousMonthKey ? { key: previousMonthKey, label: getMonthLabel(previousMonthKey), totals: previousTotals } : null,
       { key: effectiveSelectedMonth, label: getMonthLabel(effectiveSelectedMonth), totals },
-    ].filter((item) => item.label && item.totals);
-    const maxComparisonValue = Math.max(
-      ...comparisonMonths.flatMap((item) => [item.totals?.receita || 0, item.totals?.despesa || 0]),
+    ].filter(Boolean) as Array<{ key: string; label: string; totals: { receita: number; despesa: number } }>;
+    const reportMonths = comparisonMonths.length >= 2
+      ? comparisonMonths
+      : [
+          { key: effectiveSelectedMonth, label: getMonthLabel(effectiveSelectedMonth), totals },
+          previousMonthKey ? { key: previousMonthKey, label: getMonthLabel(previousMonthKey), totals: previousTotals || { receita: 0, despesa: 0 } } : null,
+        ].filter(Boolean) as Array<{ key: string; label: string; totals: { receita: number; despesa: number } }>;
+    const reportMaxValue = Math.max(
+      ...reportMonths.flatMap((item) => [item.totals?.receita || 0, item.totals?.despesa || 0, Math.abs((item.totals?.receita || 0) - (item.totals?.despesa || 0))]),
       1,
     );
     const html = `
@@ -327,14 +338,17 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             .muted { color: #6b7280; }
             ul { padding-left: 18px; }
             .chart { margin-top: 20px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
-            .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
-            .month-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
-            .bars { display: flex; gap: 10px; align-items: end; min-height: 160px; margin-top: 12px; }
-            .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-            .bar-stack { width: 100%; display: flex; gap: 8px; align-items: end; justify-content: center; min-height: 140px; }
-            .bar { width: 38%; border-radius: 8px 8px 0 0; min-height: 8px; }
-            .bar-revenue { background: #16a34a; }
-            .bar-expense { background: #dc2626; }
+            .comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+            .comparison-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+            .comparison-bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; min-height: 210px; margin-top: 12px; }
+            .comparison-column { display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 8px; min-height: 210px; }
+            .comparison-stack { width: 100%; height: 170px; display: flex; flex-direction: column; justify-content: end; align-items: center; gap: 6px; }
+            .comparison-bar { width: 60px; border-radius: 8px 8px 0 0; min-height: 8px; }
+            .comparison-label { font-size: 11px; color: #6b7280; text-align: center; }
+            .comparison-value { font-size: 13px; font-weight: 700; text-align: center; }
+            .green-bar { background: #16a34a; }
+            .red-bar { background: #dc2626; }
+            .blue-bar { background: #2563eb; }
             .legend { display: flex; gap: 12px; font-size: 12px; color: #6b7280; margin-top: 10px; }
             .legend span { display: inline-flex; align-items: center; gap: 6px; }
             .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
@@ -346,31 +360,40 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
           <div class="card"><strong>Receita:</strong> ${formatarValor(selectedTotals.receita)}</div>
           <div class="card"><strong>Despesas:</strong> ${formatarValor(selectedTotals.despesa)}</div>
           <div class="card"><strong>Lucro:</strong> ${formatarValor(selectedProfit)}</div>
+          <div class="card"><strong>Lançamentos do mês:</strong> ${selectedEntries.length}</div>
           ${comparisonMonths.length ? `
           <div class="chart">
             <h2>Comparativo de receita x despesa</h2>
             <div class="legend">
               <span><i class="dot" style="background:#16a34a"></i> Receita</span>
               <span><i class="dot" style="background:#dc2626"></i> Despesa</span>
+              <span><i class="dot" style="background:#2563eb"></i> Resultado</span>
             </div>
-            <div class="chart-grid">
-              ${comparisonMonths.map((item) => `
-                <div class="month-card">
+            <div class="comparison-grid">
+              ${reportMonths.map((item) => `
+                <div class="comparison-card">
                   <strong>${item.label}</strong>
-                  <div class="bars">
-                    <div class="bar-col">
-                      <div class="bar-stack">
-                        <div class="bar bar-revenue" style="height:${Math.max(((item.totals?.receita || 0) / maxComparisonValue) * 100, item.totals?.receita ? 12 : 6)}%"></div>
+                  <div class="comparison-bars">
+                    <div class="comparison-column">
+                      <div class="comparison-stack">
+                        <div class="comparison-bar green-bar" style="height:${Math.max(((item.totals?.receita || 0) / reportMaxValue) * 100, item.totals?.receita ? 10 : 4)}%"></div>
                       </div>
-                      <span class="muted">Receita</span>
-                      <strong>${formatarValor(item.totals?.receita || 0)}</strong>
+                      <div class="comparison-label">Receita</div>
+                      <div class="comparison-value">${formatarValor(item.totals?.receita || 0)}</div>
                     </div>
-                    <div class="bar-col">
-                      <div class="bar-stack">
-                        <div class="bar bar-expense" style="height:${Math.max(((item.totals?.despesa || 0) / maxComparisonValue) * 100, item.totals?.despesa ? 12 : 6)}%"></div>
+                    <div class="comparison-column">
+                      <div class="comparison-stack">
+                        <div class="comparison-bar red-bar" style="height:${Math.max(((item.totals?.despesa || 0) / reportMaxValue) * 100, item.totals?.despesa ? 10 : 4)}%"></div>
                       </div>
-                      <span class="muted">Despesa</span>
-                      <strong>${formatarValor(item.totals?.despesa || 0)}</strong>
+                      <div class="comparison-label">Despesa</div>
+                      <div class="comparison-value">${formatarValor(item.totals?.despesa || 0)}</div>
+                    </div>
+                    <div class="comparison-column">
+                      <div class="comparison-stack">
+                        <div class="comparison-bar blue-bar" style="height:${Math.max((Math.abs((item.totals?.receita || 0) - (item.totals?.despesa || 0)) / reportMaxValue) * 100, ((item.totals?.receita || 0) - (item.totals?.despesa || 0)) !== 0 ? 10 : 4)}%"></div>
+                      </div>
+                      <div class="comparison-label">Resultado</div>
+                      <div class="comparison-value">${formatarValor((item.totals?.receita || 0) - (item.totals?.despesa || 0))}</div>
                     </div>
                   </div>
                 </div>
@@ -522,23 +545,48 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
           <div className="h-64 flex items-end gap-4">
-            {chartItems.map((item) => (
-              <div key={item.label} className="flex-1 flex flex-col items-center gap-3">
-                <div className="w-full max-w-28 h-48 bg-gray-100 rounded-xl flex items-end p-2">
-                  <div
-                    className={`${item.color} w-full rounded-lg transition-all`}
-                    style={{
-                      height: `${Math.max(((item.receita + item.despesa) / maxChartValue) * 100, item.receita + item.despesa > 0 ? 10 : 4)}%`,
-                    }}
-                  />
+            {chartItems.map((item) => {
+              const revenueHeight = Math.max((item.receita / maxChartValue) * 100, item.receita > 0 ? 10 : 4);
+              const expenseHeight = Math.max((item.despesa / maxChartValue) * 100, item.despesa > 0 ? 10 : 4);
+              const net = item.receita - item.despesa;
+              const netHeight = Math.max((Math.abs(net) / maxChartValue) * 100, net !== 0 ? 8 : 4);
+              return (
+                <div key={item.label} className="flex-1 flex flex-col items-center gap-3">
+                  <div className="w-full max-w-32 h-48 bg-gray-100 rounded-xl p-3 flex flex-col justify-end">
+                    <div className="flex items-end justify-around gap-3 h-full">
+                      <div className="flex flex-col items-center justify-end h-full">
+                        <div
+                          className="w-8 bg-success rounded-t-md"
+                          style={{ height: `${revenueHeight}%` }}
+                        />
+                        <span className="text-[11px] mt-2 text-gray-500">Receita</span>
+                      </div>
+                      <div className="flex flex-col items-center justify-end h-full">
+                        <div
+                          className="w-8 bg-danger rounded-t-md"
+                          style={{ height: `${expenseHeight}%` }}
+                        />
+                        <span className="text-[11px] mt-2 text-gray-500">Despesa</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-col items-center">
+                      <div
+                        className={`${net >= 0 ? 'bg-success' : 'bg-danger'} w-20 rounded-t-md`}
+                        style={{ height: `${netHeight}%` }}
+                      />
+                      <span className="text-[11px] mt-2 text-gray-500">Resultado</span>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 capitalize">{item.label}</p>
+                    <p className="text-sm font-semibold">{formatarValor(net)}</p>
+                    <p className={`text-xs font-medium ${net >= 0 ? 'text-success' : 'text-danger'}`}>
+                      {net >= 0 ? 'Positivo' : 'Negativo'}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-500 capitalize">{item.label}</p>
-                  <p className="text-sm font-semibold">{formatarValor(item.receita)}</p>
-                  <p className="text-xs text-gray-500">Despesa {formatarValor(item.despesa)}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="space-y-3">
             <div className="rounded-xl bg-gray-50 border border-border p-4">
@@ -552,6 +600,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                 <>
                   <p className="text-lg font-semibold capitalize">{getMonthLabel(previousMonthKey)}</p>
                   <p className="text-xl font-bold mt-2">{formatarValor(previousTotals.receita)}</p>
+                  <p className="text-sm text-gray-500">Despesa {formatarValor(previousTotals.despesa)}</p>
+                  <p className={`text-sm font-medium ${previousTotals.receita - previousTotals.despesa >= 0 ? 'text-success' : 'text-danger'}`}>
+                    Líquido {formatarValor(previousTotals.receita - previousTotals.despesa)}
+                  </p>
                 </>
               ) : (
                 <p className="text-sm text-gray-500 mt-2">Ainda não há dados do mês anterior para comparar.</p>
