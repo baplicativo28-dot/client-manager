@@ -75,6 +75,14 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const safeEntries = Array.isArray(entries) ? entries : [];
   const safeProducts = Array.isArray(products) ? products : [];
   const safeSettings = settings || { servidores: [] };
+  const monthHasMovement = (monthKey: string) => {
+    const monthTotals = totalsByMonth[monthKey];
+    return (
+      (monthTotals?.receita || 0) > 0 ||
+      (monthTotals?.despesa || 0) > 0 ||
+      safeEntries.some((entry) => getMonthKeyFromIsoDate(entry.data) === monthKey)
+    );
+  };
 
   const totalsByMonth = useMemo(
     () => buildFinancialTotalsByMonth(safeClients, safeSettings, safeEntries),
@@ -92,9 +100,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     Object.keys(totalsByMonth).forEach((month) => keys.add(month));
     Array.from(keys).forEach((month) => {
       const previous = getPreviousMonthKey(month);
-      if (previous) keys.add(previous);
+      if (previous && monthHasMovement(previous)) keys.add(previous);
     });
     return Array.from(keys)
+      .filter((month) => monthHasMovement(month) || month === currentMonth)
       .sort((a, b) => b.localeCompare(a));
   }, [currentMonth, safeEntries, totalsByMonth]);
   const safeMonths = months;
