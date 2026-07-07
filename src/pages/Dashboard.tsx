@@ -1020,10 +1020,10 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
                 {client.trustRenewal && <span className="inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Em Confiança</span>}
                 {client.observacao && (
                   <div className="mt-2 flex items-start gap-1">
-                    <button onClick={() => setObsClient(client)} className="text-blue-500 text-base leading-none hover:scale-110 transition-transform shrink-0" title="Ver observação completa">
+                    <button onClick={() => setObsClient(client)} className="text-red-500 text-base leading-none hover:scale-110 transition-transform shrink-0" title="Ver observação completa">
                       📝
                     </button>
-                    <p className="text-xs text-gray-600 line-clamp-2">{client.observacao}</p>
+                    <p className="text-xs text-red-600 line-clamp-2 font-medium">{client.observacao}</p>
                   </div>
                 )}
               </div>
@@ -1174,7 +1174,9 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
           <div className="bg-card rounded-xl shadow-lg w-full max-w-md">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-2">{obsClient.nome}</h3>
-              <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">{obsClient.observacao}</div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 whitespace-pre-wrap font-medium">
+                {obsClient.observacao}
+              </div>
               <button
                 onClick={() => setObsClient(null)}
                 className="mt-4 w-full bg-accent text-white rounded-lg py-2 font-medium hover:bg-accent-hover transition-colors"
