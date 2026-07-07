@@ -339,16 +339,19 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
         <head>
           <title>Relatório Financeiro</title>
           <style>
+            @page { size: A4 landscape; margin: 10mm; }
+            html, body { width: 100%; margin: 0; padding: 0; }
             body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             h1 { margin: 0 0 8px; font-size: 24px; }
             h2 { margin: 24px 0 8px; font-size: 18px; }
             .meta { margin-bottom: 6px; font-size: 14px; }
-            .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 8px 0; }
+            .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 8px 0; break-inside: avoid; page-break-inside: avoid; }
             .muted { color: #6b7280; }
             ul { padding-left: 18px; }
-            .chart { margin-top: 20px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+            .chart { margin-top: 20px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; break-inside: avoid; page-break-inside: avoid; }
             .comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
-            .comparison-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+            .comparison-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; break-inside: avoid; page-break-inside: avoid; }
             .comparison-bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; min-height: 210px; margin-top: 12px; }
             .comparison-column { display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 8px; min-height: 210px; }
             .comparison-stack { width: 100%; height: 170px; display: flex; flex-direction: column; justify-content: end; align-items: center; gap: 6px; }
@@ -428,8 +431,15 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 300);
+    const triggerPrint = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+    if (printWindow.document.fonts?.ready) {
+      printWindow.document.fonts.ready.then(() => setTimeout(triggerPrint, 150)).catch(() => setTimeout(triggerPrint, 300));
+    } else {
+      setTimeout(triggerPrint, 300);
+    }
   };
 
   const handleEditEntry = (entryId: string) => {
