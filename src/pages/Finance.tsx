@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { useFinance } from '../hooks/useFinance';
@@ -10,6 +10,7 @@ import {
   getMonthKeyFromIsoDate,
   getMonthLabel,
   getPreviousMonthKey,
+  isMonthLocked,
 } from '../utils/helpers';
 import { ConfirmDialog, type ConfirmDialogState } from '../components/ConfirmDialog';
 
@@ -54,6 +55,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const [showProductModal, setShowProductModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [showEntryModal, setShowEntryModal] = useState(false);
+  const [entryPage, setEntryPage] = useState(1);
   const [entryForm, setEntryForm] = useState({
     productId: '',
     tipo: 'venda' as FinanceEntryType,
@@ -114,13 +116,32 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   });
 
   const effectiveSelectedMonth = months.includes(selectedMonth) ? selectedMonth : (months[0] || currentMonth);
+  const selectedMonthLocked = isMonthLocked(effectiveSelectedMonth, currentMonth);
+  const isEntryLocked = (entryDate: string) => isMonthLocked(getMonthKeyFromIsoDate(entryDate), currentMonth);
 
   const filteredEntries = useMemo(
     () => safeEntries
-      .filter((entry) => typeof entry?.data === 'string' && getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth)
+      .filter((entry) => typeof entry?.data === 'string' && getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth && entry.sourceType !== 'renewal')
       .sort((a, b) => (String(b.data).localeCompare(String(a.data))) || (String(b.criadoEm).localeCompare(String(a.criadoEm)))),
     [safeEntries, effectiveSelectedMonth],
   );
+  const renewalEntries = useMemo(
+    () => safeEntries
+      .filter((entry) => typeof entry?.data === 'string' && getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth && entry.sourceType === 'renewal')
+      .sort((a, b) => (String(b.data).localeCompare(String(a.data))) || (String(b.criadoEm).localeCompare(String(a.criadoEm)))),
+    [safeEntries, effectiveSelectedMonth],
+  );
+  const entriesPerPage = 10;
+  const totalEntryPages = Math.max(1, Math.ceil(filteredEntries.length / entriesPerPage));
+  const paginatedEntries = filteredEntries.slice((entryPage - 1) * entriesPerPage, entryPage * entriesPerPage);
+
+  useEffect(() => {
+    setEntryPage(1);
+  }, [effectiveSelectedMonth]);
+
+  useEffect(() => {
+    setEntryPage((current) => Math.min(current, totalEntryPages));
+  }, [totalEntryPages]);
   const totals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
   const previousMonthKey = getPreviousMonthKey(effectiveSelectedMonth);
   const previousTotals = totalsByMonth[previousMonthKey] || null;
@@ -252,6 +273,26 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       observacao: entryForm.observacao.trim(),
     };
 
+    if (isMonthLocked(getMonthKeyFromIsoDate(entryForm.data), currentMonth)) {
+      const lockedMonthLabel = getMonthLabel(getMonthKeyFromIsoDate(entryForm.data));
+      setConfirmDialog({
+        title: 'Client Manager',
+        message: `Você está lançando em um mês fechado (${lockedMonthLabel}). Deseja realmente incluir este lançamento?`,
+        confirmText: 'Sim, incluir',
+        cancelText: 'Cancelar',
+        destructive: false,
+        onConfirm: () => {
+          if (editingEntryId) {
+            updateEntry(editingEntryId, payload);
+          } else {
+            addEntry(payload);
+          }
+          resetEntryForm();
+        },
+      });
+      return;
+    }
+
     if (editingEntryId) {
       updateEntry(editingEntryId, payload);
     } else {
@@ -277,6 +318,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleDeleteEntry = (entryId: string) => {
     const entry = safeEntries.find((item) => item.id === entryId);
     const name = entry?.descricao || 'este lançamento';
+    if (entry && isEntryLocked(entry.data)) {
+      window.alert('Este lançamento pertence a um mês fechado e não pode ser excluído.');
+      return;
+    }
     setConfirmDialog({
       title: 'Client Manager',
       message: `Tem certeza que deseja excluir "${name}"? Esta ação não pode ser desfeita.`,
@@ -290,7 +335,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleExportPDF = () => {
     const selectedTotals = totalsByMonth[effectiveSelectedMonth] || { receita: 0, despesa: 0 };
     const selectedProfit = selectedTotals.receita - selectedTotals.despesa;
-    const selectedEntries = safeEntries.filter((entry) => getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth);
+    const selectedEntries = safeEntries.filter((entry) => getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth && entry.sourceType !== 'renewal');
     const recurringExpenseSummary = safeEntries
       .filter((entry) => entry.tipo === 'despesa' && getMonthKeyFromIsoDate(entry.data) === effectiveSelectedMonth)
       .reduce((acc, entry) => {
@@ -445,6 +490,10 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleEditEntry = (entryId: string) => {
     const entry = safeEntries.find((item) => item.id === entryId);
     if (!entry) return;
+    if (isEntryLocked(entry.data)) {
+      window.alert('Este lançamento pertence a um mês fechado e não pode ser editado.');
+      return;
+    }
     setEditingEntryId(entry.id);
     setShowEntryModal(true);
     setEntryForm({
@@ -534,6 +583,9 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
             {getMonthLabel(month)}
           </button>
         ))}
+      </div>
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Meses anteriores ao atual ficam automaticamente fechados. Para corrigir algo em um mês fechado, use um lançamento manual no mês corrente.
       </div>
 
       {!hasFinanceData && (
@@ -982,12 +1034,15 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
         <div className="p-5 border-b border-border">
           <h2 className="text-lg font-semibold">Lançamentos do mês</h2>
+          {selectedMonthLocked && (
+            <p className="mt-1 text-sm text-gray-500">Este mês está fechado para edição. Você ainda pode consultar os lançamentos.</p>
+          )}
         </div>
         <div className="divide-y divide-border">
           {filteredEntries.length === 0 && (
             <p className="p-5 text-sm text-gray-500">Nenhum lançamento neste mês.</p>
           )}
-          {filteredEntries.map((entry) => {
+          {paginatedEntries.map((entry) => {
             const quantity = entry.quantidade || 1;
             const expense = entry.custo * quantity;
             const revenue = entry.tipo === 'venda' ? entry.valorVenda * quantity : 0;
@@ -1021,27 +1076,123 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                     Resultado: {formatarValor(result)}
                   </p>
                   <div className="mt-2 flex items-center gap-3 md:justify-end">
-                    <button
-                      type="button"
-                      onClick={() => handleEditEntry(entry.id)}
-                      className="text-xs text-accent font-medium hover:underline"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteEntry(entry.id)}
-                      className="text-xs text-red-600 font-medium hover:underline"
-                    >
-                      Excluir
-                    </button>
+                    {!selectedMonthLocked ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleEditEntry(entry.id)}
+                          className="text-xs text-accent font-medium hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEntry(entry.id)}
+                          className="text-xs text-red-600 font-medium hover:underline"
+                        >
+                          Excluir
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400">Fechado</span>
+                    )}
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
+        <div className="p-4 border-t border-border flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-500">
+            Página {entryPage} de {totalEntryPages} · {filteredEntries.length} lançamentos
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEntryPage((current) => Math.max(1, current - 1))}
+              disabled={entryPage <= 1}
+              className="border border-border rounded-lg px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryPage((current) => Math.min(totalEntryPages, current + 1))}
+              disabled={entryPage >= totalEntryPages}
+              className="border border-border rounded-lg px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
       </div>
+
+      {renewalEntries.length > 0 && (
+        <details className="mt-6 bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          <summary className="cursor-pointer p-5 border-b border-border text-sm font-medium">
+            Exibir renovações do mês ({renewalEntries.length})
+          </summary>
+          <div className="divide-y divide-border">
+            {renewalEntries.map((entry) => {
+              const quantity = entry.quantidade || 1;
+              const expense = entry.custo * quantity;
+              const revenue = entry.tipo === 'venda' ? entry.valorVenda * quantity : 0;
+              const result = revenue - expense;
+
+              return (
+                <div key={entry.id} className="p-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between bg-yellow-50/50">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{entry.descricao}</p>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Renovação
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                        {categoryLabels[entry.categoria]}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Data: {new Date(entry.data + 'T00:00:00').toLocaleDateString('pt-BR')} · Quantidade: {quantity}
+                    </p>
+                    {entry.observacao && <p className="text-sm text-gray-600 mt-1">{entry.observacao}</p>}
+                  </div>
+                  <div className="text-sm md:text-right">
+                    <p className="text-gray-500">Despesa: <span className="text-danger font-medium">{formatarValor(expense)}</span></p>
+                    {entry.tipo === 'venda' && (
+                      <p className="text-gray-500">Receita: <span className="text-success font-medium">{formatarValor(revenue)}</span></p>
+                    )}
+                    <p className={`font-semibold ${result >= 0 ? 'text-success' : 'text-danger'}`}>
+                      Resultado: {formatarValor(result)}
+                    </p>
+                    <div className="mt-2 flex items-center gap-3 md:justify-end">
+                      {!selectedMonthLocked ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleEditEntry(entry.id)}
+                            className="text-xs text-accent font-medium hover:underline"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEntry(entry.id)}
+                            className="text-xs text-red-600 font-medium hover:underline"
+                          >
+                            Excluir
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">Fechado</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
 
       {confirmDialog && (
         <ConfirmDialog

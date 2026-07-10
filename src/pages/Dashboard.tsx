@@ -170,20 +170,22 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
           : list.filter((client) => !client.desativado && client.statusCalculado === statusMap[activeTab]);
       }
 
-      if (diasAntecipado > 0) {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
-        const limite = new Date(hoje);
-        limite.setDate(limite.getDate() + diasAntecipado);
-        list = list.filter((client) => {
-          const venc = new Date(client.dataVencimento + 'T00:00:00');
-          return venc >= hoje && venc <= limite;
-        });
-      }
     }
 
     if (serverFilter) {
       list = list.filter((client) => (client.servidor || 'Sem servidor') === serverFilter);
+    }
+
+    if (diasAntecipado > 0) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      list = list.filter((client) => {
+        if (!client.dataVencimento) return false;
+        const venc = new Date(`${client.dataVencimento}T00:00:00`);
+        if (Number.isNaN(venc.getTime())) return false;
+        const diffDays = Math.floor((venc.getTime() - hoje.getTime()) / 86400000);
+        return diffDays >= 0 && diffDays <= diasAntecipado;
+      });
     }
 
     return [...list].sort((left, right) => {

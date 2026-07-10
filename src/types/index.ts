@@ -77,4 +77,6 @@ export interface FinanceEntry {
   observacao?: string;
   productId?: string | null;
   criadoEm: string;
+  sourceType?: 'manual' | 'renewal';
+  sourceRef?: string;
 }

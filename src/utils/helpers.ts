@@ -130,17 +130,24 @@ export function getPreviousMonthKey(yearMonth: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export function getCurrentMonthKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export function isMonthLocked(monthKey: string, currentMonthKey = getCurrentMonthKey()): boolean {
+  if (!monthKey || monthKey.length < 7 || !currentMonthKey || currentMonthKey.length < 7) return false;
+  return monthKey < currentMonthKey;
+}
+
 export function buildFinancialTotalsByMonth(
-  clients: Client[] = [],
+  _clients: Client[] = [],
   settings: Settings | null | undefined,
   financeEntries: FinanceEntry[] = [],
 ): Record<string, { receita: number; despesa: number }> {
-  const safeClients = Array.isArray(clients) ? clients : [];
   const safeEntries = Array.isArray(financeEntries) ? financeEntries : [];
   const safeSettings = settings || { servidores: [] };
 
   const totals: Record<string, { receita: number; despesa: number }> = {};
-  const activeClients = safeClients.filter((client) => !client.desativado);
   const serverCostMap: Record<string, number> = {};
 
   (safeSettings.servidores || []).forEach((server) => {
@@ -155,23 +162,6 @@ export function buildFinancialTotalsByMonth(
     }
     return true;
   };
-
-  activeClients.forEach((client) => {
-    if (!client.ultimaRenovacao) return;
-    const renewalParts = client.ultimaRenovacao.split('-').map(Number);
-    if (renewalParts.length !== 3 || renewalParts.some((part) => Number.isNaN(part))) return;
-    const [renewalYear, renewalMonth, renewalDay] = renewalParts;
-    const renewalDate = new Date(renewalYear, renewalMonth - 1, renewalDay);
-    if (Number.isNaN(renewalDate.getTime())) return;
-    const monthKey = `${renewalDate.getFullYear()}-${String(renewalDate.getMonth() + 1).padStart(2, '0')}`;
-    if (!ensureMonth(monthKey)) return;
-    const months = typeof client.mesesRenovados === 'number' && !Number.isNaN(client.mesesRenovados) ? client.mesesRenovados : 1;
-    const valor = typeof client.valor === 'number' && !Number.isNaN(client.valor) ? client.valor : 0;
-    totals[monthKey].receita += valor * months;
-    if (!settings?.ignoreRenewalServerCost) {
-      totals[monthKey].despesa += (serverCostMap[client.servidor] || 0) * months;
-    }
-  });
 
   safeEntries.forEach((entry) => {
     if (!entry || typeof entry.data !== 'string') return;
