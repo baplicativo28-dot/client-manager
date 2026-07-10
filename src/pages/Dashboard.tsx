@@ -39,7 +39,7 @@ type ReminderItem = {
 
 export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const { clients, loading: clientsLoading, addClient, updateClient, deleteClient, online, pendingCount, syncing, syncNow } = useClients(uid);
-  const { entries: financeEntries } = useFinance(uid);
+  const { entries: financeEntries, addEntry } = useFinance(uid);
   const { settings } = useSettings(uid);
   const getLocalIsoDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 
@@ -218,6 +218,9 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
   const renewClientFromBaseDate = (client: Client, months: number, baseDate: string) => {
     const newDate = adicionarMeses(baseDate, months);
     const localTodayIso = getLocalIsoDate();
+    const serverCost = settings.ignoreRenewalServerCost
+      ? 0
+      : (settings.servidores.find((server) => server.nome === client.servidor)?.custo || 0);
     updateClient(client.id, {
       dataVencimento: newDate,
       situacao: 'Renovou',
@@ -229,6 +232,19 @@ export function Dashboard({ uid, onLogout, isAdmin = false }: DashboardProps) {
       trustActivationDate: null,
       trustOriginalDueDate: null,
       desativado: false,
+    });
+    addEntry({
+      productId: null,
+      tipo: 'venda',
+      categoria: 'licenca',
+      descricao: `Renovação ${client.nome}`,
+      custo: serverCost,
+      valorVenda: client.valor,
+      quantidade: months,
+      data: localTodayIso,
+      observacao: `Renovação automática de ${months} mês(es)`,
+      sourceType: 'renewal',
+      sourceRef: client.id,
     });
   };
 
