@@ -275,6 +275,9 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
 
     if (isMonthLocked(getMonthKeyFromIsoDate(entryForm.data), currentMonth)) {
       const lockedMonthLabel = getMonthLabel(getMonthKeyFromIsoDate(entryForm.data));
+      if (editingEntryId) {
+        setShowEntryModal(false);
+      }
       setConfirmDialog({
         title: 'Client Manager',
         message: `Você está lançando em um mês fechado (${lockedMonthLabel}). Deseja realmente incluir este lançamento?`,
@@ -490,7 +493,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
   const handleEditEntry = (entryId: string) => {
     const entry = safeEntries.find((item) => item.id === entryId);
     if (!entry) return;
-    if (isEntryLocked(entry.data)) {
+    if (isEntryLocked(entry.data) && entry.sourceType === 'renewal') {
       window.alert('Este lançamento pertence a um mês fechado e não pode ser editado.');
       return;
     }
@@ -1076,7 +1079,7 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                     Resultado: {formatarValor(result)}
                   </p>
                   <div className="mt-2 flex items-center gap-3 md:justify-end">
-                    {!selectedMonthLocked ? (
+                    {!(selectedMonthLocked && entry.sourceType === 'renewal') ? (
                       <>
                         <button
                           type="button"
@@ -1165,23 +1168,23 @@ export function FinancePage({ uid, onLogout }: FinancePageProps) {
                       Resultado: {formatarValor(result)}
                     </p>
                     <div className="mt-2 flex items-center gap-3 md:justify-end">
-                      {!selectedMonthLocked ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleEditEntry(entry.id)}
-                            className="text-xs text-accent font-medium hover:underline"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteEntry(entry.id)}
-                            className="text-xs text-red-600 font-medium hover:underline"
-                          >
-                            Excluir
-                          </button>
-                        </>
+                    {!(selectedMonthLocked && entry.sourceType === 'renewal') ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleEditEntry(entry.id)}
+                          className="text-xs text-accent font-medium hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEntry(entry.id)}
+                          className="text-xs text-red-600 font-medium hover:underline"
+                        >
+                          Excluir
+                        </button>
+                      </>
                       ) : (
                         <span className="text-xs text-gray-400">Fechado</span>
                       )}
